@@ -316,7 +316,7 @@ def _typecheck(v: Any, t: Type) -> bool:
 	# on return (unless wrapping is off) callables that make
 	# it into this if statement are only those which are subscripted
 	# (not generic `Callable` or the wrapped ones.) Simply return True.
-	elif _isCallable(t) or callable(v):
+	elif _isCallable(t):
 		return True
 
 	elif _isString(t):
