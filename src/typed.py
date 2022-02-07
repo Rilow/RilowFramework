@@ -186,8 +186,17 @@ def _isCallable(x: Any) -> bool:
 	"""
 	Returns True if x is a Callable.
 	"""
-	# HACKHACK: Accessing private class of the typing module.
+	# HACKHACK: Accessing private class of the typing module
 	return x.__class__ == _CallableGenericAlias
+
+def _isString(x: Any) -> bool:
+	"""
+	Returns True if x is a string.
+	"""
+	try:
+		return isinstance(x, str) or x == str
+	except:
+		return False
 
 def _typecheck(v: Any, t: Type) -> bool:
 	"""
@@ -307,8 +316,15 @@ def _typecheck(v: Any, t: Type) -> bool:
 	# on return (unless wrapping is off) callables that make
 	# it into this if statement are only those which are subscripted
 	# (not generic `Callable` or the wrapped ones.) Simply return True.
-	elif _isCallable(t):
+	elif _isCallable(t) or callable(v):
 		return True
+
+	elif _isString(t):
+		# Strings (representive retruns like)
+		# def getUser(someargs) -> "User": ...
+		# are handled here. They are always true because
+		# they are basically just a type var without an arg.
+		check = True
 
 	# If not value has been set for the check then perform an instance check
 	if check is None:
