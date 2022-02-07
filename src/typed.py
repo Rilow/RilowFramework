@@ -5,8 +5,9 @@ Name: typed.py
 Description: strict typed functions in python
 """
 from functools import partial as _partial
-import typing
-from typing import Any, Callable, List, Tuple, Type, Type, TypeVar, NoReturn
+from typing import \
+		_SpecialGenericAlias, _CallableGenericAlias, Any, Callable, Dict, \
+		List, Tuple, Type, TypeVar, NoReturn, Optional, Union, get_origin
 from types import CodeType, FunctionType, MethodType, WrapperDescriptorType
 
 # Set this True for debug messages
@@ -131,28 +132,28 @@ def _isUnion(x: Any) -> bool:
 	Returns True if x is a Union.
 	"""
 	# Check the origin
-	return typing.get_origin(x) is typing.Union
+	return get_origin(x) is Union
 
 def _isList(x: Any) -> bool:
 	"""
 	Returns True if x is a List.
 	"""
 	# Check the origin
-	return typing.get_origin(x) == list
+	return get_origin(x) == list
 
 def _isTuple(x: Any) -> bool:
 	"""
 	Returns True if x is a Tuple.
 	"""
 	# Check the origin
-	return typing.get_origin(x) == tuple
+	return get_origin(x) == tuple
 
 def _isDict(x: Any) -> bool:
 	"""
 	Returns True if x is a Dict.
 	"""
 	# Check the origin
-	return typing.get_origin(x) == dict
+	return get_origin(x) == dict
 
 def _isTypeVar(x: Any) -> bool:
 	"""
@@ -173,7 +174,7 @@ def _isType(x: Any) -> bool:
 	Returns True if x is Type.
 	"""
 	# HACKHACK: Accessing private class of the typing module
-	return x == Type and x.__class__ == typing._SpecialGenericAlias
+	return x == Type and x.__class__ == _SpecialGenericAlias
 
 def _isBuiltinType(x: Any) -> bool:
 	"""
@@ -186,7 +187,7 @@ def _isCallable(x: Any) -> bool:
 	Returns True if x is a Callable.
 	"""
 	# HACKHACK: Accessing private class of the typing module.
-	return x.__class__ == typing._CallableGenericAlias
+	return x.__class__ == _CallableGenericAlias
 
 def _typecheck(v: Any, t: Type) -> bool:
 	"""
@@ -205,7 +206,7 @@ def _typecheck(v: Any, t: Type) -> bool:
 		check = True
 
 	# typing.NoReturn -> This should never be triggered (NoReturn should exit before a typecheck on a return)
-	elif t == typing.NoReturn:
+	elif t == NoReturn:
 		raise RuntimeError("NoReturn should not be accessed by the typed wrapper")
 
 	# types.NoneType -> Ensure the value is None
@@ -531,10 +532,10 @@ def _main():
 	"""
 	Testing function
 	"""
-	X = typing.TypeVar("X", bound=int)
+	X = TypeVar("X", bound=int)
 
 	@typed
-	def myFunc(x: int, y=None) -> typing.Callable[[int, int, typing.Optional[bool]], int]:
+	def myFunc(x: int, y=None) -> Callable[[int, int, Optional[bool]], int]:
 		def test(x, y, test=None) -> int:
 			return int(x + y)
 		return test
@@ -559,7 +560,7 @@ def _main():
 
 
 	@typed
-	def passInADict(data: typing.Dict) -> None:
+	def passInADict(data: Dict) -> None:
 		return data
 
 	try:
