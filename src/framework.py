@@ -10,25 +10,25 @@ from typing import Set
 # Because typed is not part of the framework
 # it is not guarenteed to be available.
 try:
-	from typed import typed
+    from typed import typed
 except ImportError:
-	def typed(x): return x
+    def typed(x): return x
 
 __DEFINES__: Set[str] = set()
 
 @typed
 def define(x: str) -> None:
-	"""
-	Define `x` marking it as true.
-	"""
-	__DEFINES__.add(x.lower())
+    """
+    Define `x` marking it as true.
+    """
+    __DEFINES__.add(x.lower())
 
 @typed
 def defined(x: str) -> bool:
-	"""
-	Returns True if `x` is defined.
-	"""
-	return x.lower() in __DEFINES__
+    """
+    Returns True if `x` is defined.
+    """
+    return x.lower() in __DEFINES__
 
 # Normally modules that are part of the framework will define themselves
 # but because typed is imported by the framework to avoid circular imports
@@ -36,4 +36,4 @@ def defined(x: str) -> bool:
 # function defined at the tope of this file is of the "typed" module
 # and not "__main__" or "framework"
 if typed.__module__ == "typed":
-	define("TYPED_PY")
+    define("TYPED_PY")
