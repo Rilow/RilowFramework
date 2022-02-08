@@ -7,45 +7,64 @@ Description: Function overrides in python
 import functools
 import inspect
 from typing import Any, Callable, Dict, List, Union, Optional
+import sys
 
-from framework import typed, defined
+from framework import typed, define
+define("OVERRIDE_PY")
 
 @typed
-def _getClassFromMethod(meth: Callable) -> Optional[type]:
-	"""
-	Attempts to get the class from a method/function.
-	"""
-	# Use the internal method for partial functions
-	if isinstance(meth, functools.partial):
-		return _getClassFromMethod(meth.func)
+def _getClassNameFromFunction(func: Callable) -> str:
+	if hasattr(func, "__func__"):
+		return _getClassFromFunction(func.__func__)
+	elif hasattr(func, "func"):
+		return _getClassFromFunction(func.func)
 
-	# Scan the mro
-	if inspect.ismethod(meth) or (inspect.isbuiltin(meth) and getattr(meth, '__self__', None) is not None and getattr(meth.__self__, '__class__', None)):
-		for cls in inspect.getmro(meth.__self__.__class__):
-			if meth.__name__ in cls.__dict__:
-				return cls
-		meth = getattr(meth, '__func__', meth) # Fallback to __qualname__ parsing
+	if hasattr(func, "__self__"):
+		return func.__self__.__class__.__qualname__
 
-	# __qualname__ parsing
-	if inspect.isfunction(meth):
-		cls = getattr(inspect.getmodule(meth),
-						meth.__qualname__.split('.<locals>', 1)[0].rsplit('.', 1)[0],
-						None)
-		if isinstance(cls, type):
-			return cls
+	moduleName = func.__module__
+	module = sys.modules[moduleName]
+	qualname = func.__qualname__
+	name = func.__name__
+	splits = qualname.split(".")
 
-	return getattr(meth, '__objclass__', None) # special descriptor objects
+	if len(splits) == 1:
+		# If there is only one split then
+		# the function is in the module scope.
+		return func.__module__ + "." + func.__name__
+
+	obj = module
+	objects = {}
+
+	# Skip the last split (its the function itself)
+	for split in splits[:-1]:
+		if not hasattr(obj, split):
+			continue
+
+		obj = getattr(obj, split)
+		objects[split] = obj
+
+	cls = None
+	for obj in reversed(list(objects.values())):
+		if inspect.isclass(obj) and getattr(obj, name) == func:
+			cls = obj
+			break
+
+	if cls is None:
+		return None
+	else:
+		return cls.__qualname___
 
 @typed
 def _getManagerId(func: Callable) -> str:
 	"""
 	Returns the manager id of a given function.
 	"""
-	cls = _getClassFromMethod(func)
+	cls = _getClassNameFromFunction(func)
 	if cls:
-		return cls.__qualname__
+		return cls
 	else:
-		return func.__module__
+		return func.__qualname__
 
 @typed
 def _getHash(types: List[type]) -> int:
@@ -107,6 +126,8 @@ class _OverrideManager:
 		wrapper.__doc__ = func.__doc__
 		wrapper.__name__ = func.__name__
 		wrapper.__qualname__ = func.__qualname__
+		wrapper.__override__ = func
+		wrapper.__manager__ = self
 		return wrapper
 
 class _OverrideManagerFactory:
@@ -149,10 +170,10 @@ if __name__ == '__main__':
 		print("str int")
 
 	k = list(_OverrideManagerFactory._managers.keys())[0]
-	print(test)
+	manager = _OverrideManagerFactory._managers[k]
+	overrides = manager._overrides
 	print(_OverrideManagerFactory._managers)
-	print(_OverrideManagerFactory._managers[k]._overrides)
-	print()
+	print(overrides)
 
 	test(2)
 	test("testing")
@@ -160,6 +181,4 @@ if __name__ == '__main__':
 
 	test(2, "hello")
 	test("hello", 2)
-	print()
-
 
