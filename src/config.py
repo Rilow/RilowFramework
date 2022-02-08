@@ -23,49 +23,10 @@ class ConfigParser(ABC):
     Abstract base class for config parsers.
     """
     def parse(config: "ConfigBase", filepath: str) -> Dict[str, Any]:
-        return NotImplemented
+        raise NotImplementedError
 
     def save(config, filepath, data) -> None:
-        return NotImplemented
-
-def _getCallerInstance():
-    """
-    Returns the instance who called this function.
-
-    Used by set() and get().
-    """
-    # Go back two frames (once for the function that called this one and 
-    # once more to go back to the instances call to get/set)
-    return inspect.currentframe().f_back.f_back.f_locals["self"]
-
-
-def set(attr, value):
-    """
-    Helper function for `ConfigBase` do not use.
-
-    Set an attribute of the instance.
-    """
-    try:
-        self = _getCallerInstance()
-        return object.__setattr__(self, attr, value)
-    except:
-        pass
-
-    raise ConfigError(f"Could not set '{attr}' to '{value}'")
-
-def get(attr):
-    """
-    Helper function for `ConfigBase` do not use.
-
-    Return an attribute of the instance.
-    """
-    try:
-        self = _getCallerInstance()
-        return object.__getattribute__(self, attr)
-    except:
-        pass
-
-    raise ConfigError(f"Could not get '{attr}'")
+        raise NotImplementedError
 
 class ConfigBase:
     """
@@ -73,9 +34,12 @@ class ConfigBase:
     """
     def __init__(self, filepath: str=None, *, parser: ConfigParser=ConfigParser, doSaving: bool=False, doLoading: bool=True, ignoreParserErrors: bool=False):
         if parser is None:
-            parser = MemoryParser
+            parser = NullParser
         elif parser == ConfigParser:
             parser = DefaultParser
+
+        if not issubclass(parser, ConfigParser):
+            raise TypeError(f"parser must be a subclass of `ConfigParser` {parser=}")
 
         if filepath is not None:
             if not os.path.exists(filepath):
@@ -148,17 +112,55 @@ class ConfigBase:
         filepath = get("parser")
 
         try:
-            parsersave(self, filepath, data)
+            parser.save(self, filepath, data)
         except:
             if not get("ignoreParserErrors"):
                 raise ParserSaveError(parser, f"failed to save {filepath}, {data=}")
 
 
-        
-class MemoryParser(ConfigParser):
+def _getCallerInstance():
     """
-    The memory parser simply does nothing. 
-    All configuration management is done in-memory
+    Returns the instance who called this function.
+
+    Used by set() and get().
+    """
+    # Go back two frames (once for the function that called this one and 
+    # once more to go back to the instances call to get/set)
+    return inspect.currentframe().f_back.f_back.f_locals["self"]
+
+
+def set(attr, value):
+    """
+    Helper function for `ConfigBase` do not use.
+
+    Set an attribute of the instance.
+    """
+    try:
+        self = _getCallerInstance()
+        return object.__setattr__(self, attr, value)
+    except:
+        pass
+
+    raise ConfigError(f"Could not set '{attr}' to '{value}'")
+
+def get(attr):
+    """
+    Helper function for `ConfigBase` do not use.
+
+    Return an attribute of the instance.
+    """
+    try:
+        self = _getCallerInstance()
+        return object.__getattribute__(self, attr)
+    except:
+        pass
+
+    raise ConfigError(f"Could not get '{attr}'")
+    
+        
+class NullParser(ConfigParser):
+    """
+    The null parser does nothing.
     """
     def parse(config, filepath):
         return {}
@@ -260,7 +262,7 @@ class Config(ConfigBase):
 
 class MemoryConfig(ConfigBase):
     def __init__(self):
-        ConfigBase.__init__(self, None, parser=MemoryParser)
+        ConfigBase.__init__(self, None, parser=NullParser, doLoading=False, doSaving=False)
 
 
 if __name__ == '__main__':
