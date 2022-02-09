@@ -7,6 +7,9 @@ Description: Private functions inside of classes.
 import inspect
 import sys
 
+from framework import define
+define("PRIVATE_PY")
+
 class PrivateError(Exception):
     """
     Raised when trying to access a private method from outside of the allowed namespace.
