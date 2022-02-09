@@ -41,16 +41,10 @@ def private(func):
 
         errstring = f"{func.__qualname__} is a private method and cannot be called externally"
 
-        if len(stack) < 3 or cls is None:
+        if len(stack) < 3:
             # There currently is less than 3 frames on the stack.
             # This usually means the call came from the module scope.
-            frame = stack[-1]
-        
-            if cls is None and frame.function != "<module>":
-                return func.__call__(*args, **kwargs)
-
-            else:
-                raise PrivateError(errstring)
+            raise PrivateError(errstring)
 
         frame = stack[2].frame
 
