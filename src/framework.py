@@ -6,13 +6,23 @@ Description: the core module of the framework.
 All modules depend on this.
 """
 import os
-from typing import Callable, Set, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 import importlib.util
 import sys
 from types import ModuleType
 
 #### Struct ####
 class Struct:
+    """
+    A structure can contain any data.
+    Although with one exception:
+    There can not be any duplicate values.
+    e.g.
+    >>> s = Struct()
+    >>> s.key = someValue
+    >>> s.key2 = someValue
+    ValueError
+    """
     def __init__(self, **kwargs):
         for key in kwargs:
             setattr(self, key, kwargs[key])
@@ -51,8 +61,19 @@ class Struct:
 
         return self.__dict__[item]
 
+    def __setattr__(self, attr, value):
+        if value in self.__dict__.values():
+            raise ValueError(f"Duplicate value '{value}' from key '{attr}'")
+
+        self.__dict__[attr] = value
+
 #### Enum ####
-def enum(*args):
+def enum(*args: Any) -> Struct:
+    """
+    Takes a list of string keys and returns a 
+    enum-like Struct object which automatically creates
+    integer values for the enum keys.
+    """
     data = {}
     counter = 0
 
@@ -65,8 +86,14 @@ def enum(*args):
 
 #### Modules ####
 
-modules = {}
-def getModule(name: str) -> ModuleType:
+# All framework modules are stored here.
+modules: Dict[str, ModuleType] = {}
+
+def getModule(name: str) -> Optional[ModuleType]:
+    """
+    Gets a framework module.
+    If the specified module is not available then None is returned.
+    """
     fname = f"rilowframework.{name}"
     if name in modules:
         return modules[name]
@@ -116,11 +143,16 @@ Events = enum(
     "EVENT",
 )
 
-# A dictionary of all generated event codes and their name.
-_eventCache = {}
+# For events that are used which are not a part of 
+# the events enum we need to generate a new code for them given a string.
+# In order to reduce the time it takes to get the code of an event they
+# are cached here with {name: code}.
+_eventCache: Dict[str, int] = {}
 
-# Event registry
-_registry = {}
+# Event registry.
+# Each key is an event code and each value is 
+# a list of callables registered to the event.
+_registry: Dict[int, List[Callable]] = {}
 
 def _getEventCode(event: Union[str, int]) -> int:
     """
@@ -162,7 +194,11 @@ def _getEventName(event: int) -> str:
         return Events[event]
     
     elif event in _eventCache.values():
+        # Get the key at the same index as the index of the event in the values list.
         return list(_eventCache.keys())[list(_eventCache.values()).index(event)]
+
+    else:
+        raise ValueError("Cannot find name for event '%s'" % event)
 
 def on(event: Union[str, int], function: Callable) -> None:
     """
@@ -222,7 +258,12 @@ def do(event: Union[str, int], *args, **kwargs) -> None:
 
 ##### Framework Loading #####
 
-def _onFrameworkLoad(loaded_modules):
+def _onFrameworkLoad(loaded_modules: Dict[str, ModuleType]) -> None:
+    """
+    Internal method called when the framework is done loading.
+    This is actually registered to Events.FRAMEWORK_LOAD
+    Do not call directly.
+    """
     modules.update(loaded_modules)
 
     for name, module in loaded_modules.items():
@@ -234,6 +275,7 @@ def _onFrameworkLoad(loaded_modules):
         if hasattr(module, "onFrameworkLoad"):
             module.onFrameworkLoad()
 
+    # We wait untill all modules are finalized before doing MODULE_LOAD events.
     for name in loaded_modules:
         do(Events.MODULE_LOAD, name)
     return
@@ -245,15 +287,12 @@ def _onFrameworkLoad(loaded_modules):
 # [2] grabs the file list from the os.walk iteration.
 files = next(os.walk(os.path.dirname(__file__)))[2]
 
-IGNORED_FILES = (
-    "framework.py" # Ignore the core framework
-,)
+# Unfinalized modules are loaded into this dict and then on Events.FRAMEWORK_LOAD
+# (_onFrameworkLoad) they are then finalized and loaded into the `modules` dict.
+_loaded_modules: Dict[str, ModuleType] = {}
 
-_loaded_modules = {}
 for file in files:
-    if file in IGNORED_FILES:
-        continue
-    if not file.endswith(".py"):
+    if not file.endswith(".py") or file == "framework.py":
         continue
 
     moduleName, _ = os.path.splitext(file)
@@ -270,12 +309,14 @@ for file in files:
     _loaded_modules[moduleName] = module
 
 # Cleanup namespace
-del IGNORED_FILES, file, files, module, moduleName, path, spec
+del file, files, module, moduleName, path, spec, _
 
 # After all of the modules have been loaded (framework is initialized)
 # call the onFrameworkLoad function.
 on(Events.FRAMEWORK_LOAD, _onFrameworkLoad)
 do(Events.FRAMEWORK_LOAD, _loaded_modules)
+
+# Clean up namespace
 del _loaded_modules
 
 #### Done loading framework ###
