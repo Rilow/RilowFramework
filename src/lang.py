@@ -10,17 +10,18 @@ import os
 
 # Default locale has a different implementation for non-windows.
 import ctypes
-if hasattr(ctypes, "windll"):
-    # Windows dll is defined.
-    def _getDefaultLocale():
-        return _locale.windows_locale[ctypes.windll.kernel32.GetUserDefaultUILanguage()]
 
-else:
-    # Windows dll is not available (non-windows)
-    del ctypes
+def _getDefaultLocaleWindows() -> str:
+    import ctypes
+    return _locale.windows_locale[ctypes.windll.kernel32.GetUserDefaultUILanguage()]
 
-    def _getDefaultLocale():
-        return _locale.getdefaultlocale()[0]
+def _getDefaultLocaleNonWindows() -> str:
+    return _locale.getdefaultlocale()[0]
+
+if os.name == "nt": # Windows
+    _getDefaultLocale = _getDefaultLocaleWindows
+else: # Non Windows
+    _getDefaultLocale = _getDefaultLocaleNonWindows
 
 # Set this to the locale to use whenever a given locale
 # fails to load, of course you can use `use_fallback=False`
@@ -29,6 +30,8 @@ else:
 # just returns any translation key it is given. e.g. translate("#text") => "#text"
 # to disable the blank locale you can use `use_blank_fallback=False`
 FALLBACK_LOCALE = "en_US"
+
+# A special string to specify a blank lang object.
 BLANK_LOCALE = "__BLANK__"
 
 def _getLocaleFile(locale: str) -> str:
@@ -85,11 +88,16 @@ def _getTranslationsFromFile(filepath: str) -> Dict[str, str]:
         translations[split[0].strip()] = split[1].strip()
     return translations
 
+# Valid characters which can be used in keys
 import string
 _KEY_CHARACTERS_ = string.ascii_letters + string.digits
 del string
 
 class Lang:
+    @classmethod
+    def blank(cls) -> "Lang":
+        return cls(BLANK_LOCALE, {})
+
     @classmethod
     def from_locale(cls, locale: str) -> "Lang":
         if not isinstance(locale, str):
@@ -103,7 +111,7 @@ class Lang:
             raise TypeError("filepath must be a string")
 
         if filepath == BLANK_LOCALE:
-            return cls(BLANK_LOCALE, {})
+            return cls.blank()
 
         if not os.path.exists(filepath):
             raise FileNotFoundError(filepath)

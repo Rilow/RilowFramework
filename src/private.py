@@ -6,6 +6,7 @@ Description: Private functions inside of classes.
 """
 import inspect
 import sys
+from typing import Callable
 
 class PrivateError(Exception):
     """
@@ -13,7 +14,7 @@ class PrivateError(Exception):
     """
     pass
 
-def private(func):
+def private(func: Callable) -> Callable:
     """
     Makes a function/method private by blocking all
     external callers foreign to the Class/Module the
@@ -35,7 +36,7 @@ def private(func):
 
         # Get caller
         stack = inspect.stack()
-        print(self)
+
         errstring = f"{func.__qualname__} is a private method and cannot be called externally"
 
         if len(stack) < 3:
@@ -43,9 +44,8 @@ def private(func):
             # This usually means the call came from the module scope.
             raise PrivateError(errstring)
 
+        # Search for callerClass
         frame = stack[2].frame
-
-        foundVar = False
 
         if "self" in frame.f_locals:
             callerClass = frame.f_locals["self"].__class__
@@ -64,18 +64,19 @@ def private(func):
                 # Can call the method
                 return func.__call__(*args, **kwargs)
 
-        # Get the class
+        # Compare class with calling class
         if cls != callerClass:
             raise PrivateError(errstring)
 
         else:
             return func.__call__(*args, **kwargs)
 
+    # Copy func attributes + add some more
     wrapper.__name__ = func.__name__
     wrapper.__qualname__ = func.__qualname__
     wrapper.__doc__ = func.__doc__
     wrapper.__private__ = True # this isn't really checked by the module but is present incase others want to check.
-    wrapper.__func__ = func # same as above, just in case
+    wrapper.__private_func__ = func # same as above, just in case
     return wrapper
 
 if __name__ == "__main__":

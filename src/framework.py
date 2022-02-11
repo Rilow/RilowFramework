@@ -280,6 +280,7 @@ def _onFrameworkLoad(loaded_modules: Dict[str, ModuleType]) -> None:
         do(Events.MODULE_LOAD, name)
     return
 
+on(Events.FRAMEWORK_LOAD, _onFrameworkLoad)
 
 
 # os.path.dirname gets the directory the framework is in.
@@ -311,9 +312,7 @@ for file in files:
 # Cleanup namespace
 del file, files, module, moduleName, path, spec, _
 
-# After all of the modules have been loaded (framework is initialized)
-# call the onFrameworkLoad function.
-on(Events.FRAMEWORK_LOAD, _onFrameworkLoad)
+# Trigger the framework load event.
 do(Events.FRAMEWORK_LOAD, _loaded_modules)
 
 # Clean up namespace

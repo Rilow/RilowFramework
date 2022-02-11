@@ -25,7 +25,7 @@ class ConfigParser(ABC):
     def parse(config: "ConfigBase", filepath: str) -> Dict[str, Any]:
         raise NotImplementedError
 
-    def save(config, filepath, data) -> None:
+    def save(config: "ConfigBase", filepath: str, data: Dict[str, Any]) -> None:
         raise NotImplementedError
 
 class ConfigBase:
@@ -33,6 +33,7 @@ class ConfigBase:
     The base class for all config classes.
     """
     def __init__(self, filepath: str=None, *, parser: ConfigParser=ConfigParser, doSaving: bool=False, doLoading: bool=True, ignoreParserErrors: bool=False):
+        # If parser is set to the ConfigParser ABC then use the default parser (this is used because None is reserved for NullParser)
         if parser is None:
             parser = NullParser
         elif parser == ConfigParser:
@@ -45,6 +46,7 @@ class ConfigBase:
             if not os.path.exists(filepath):
                 raise FileNotFoundError(filepath)
 
+        # Set attributes
         set("doSaving", doSaving)
         set("parser", parser)
         set("filepath", filepath)
@@ -82,7 +84,7 @@ class ConfigBase:
     def __setitem__(self, item, value):
         set(item, value)
 
-    def load(self):
+    def load(self) -> None:
         """
         Load the config using the parser.
         """
@@ -100,7 +102,7 @@ class ConfigBase:
         if not err:
             set("data", data)
 
-    def save(self):
+    def save(self) -> None:
         """
         Save the config using the parser.
         """
@@ -118,7 +120,7 @@ class ConfigBase:
                 raise ParserSaveError(parser, f"failed to save {filepath}, {data=}")
 
 
-def _getCallerInstance():
+def _getCallerInstance() -> object:
     """
     Returns the instance who called this function.
 
@@ -129,7 +131,7 @@ def _getCallerInstance():
     return inspect.currentframe().f_back.f_back.f_locals["self"]
 
 
-def set(attr, value):
+def set(attr: str, value: Any) -> None:
     """
     Helper function for `ConfigBase` do not use.
 
@@ -143,7 +145,7 @@ def set(attr, value):
 
     raise ConfigError(f"Could not set '{attr}' to '{value}'")
 
-def get(attr):
+def get(attr: str) -> Any:
     """
     Helper function for `ConfigBase` do not use.
 
@@ -162,17 +164,17 @@ class NullParser(ConfigParser):
     """
     The null parser does nothing.
     """
-    def parse(config, filepath):
+    def parse(config: ConfigBase, filepath: str) -> Dict[str, Any]:
         return {}
 
-    def save(config, filepath, data):
+    def save(config: ConfigBase, filepath: str, data: Dict[str, Any]) -> None:
         return
 
 class DefaultParser(ConfigParser):
     """
     Default parser.
     """
-    def parse(config, filepath):
+    def parse(config: ConfigBase, filepath: str) -> Dict[str, Any]:
         if filepath is None:
             return {}
 
@@ -207,7 +209,7 @@ class DefaultParser(ConfigParser):
 
         return data
 
-    def save(config, filepath, data):
+    def save(config: ConfigBase, filepath: str, data: Dict[str, Any]) -> None:
         if filepath is None:
             return
 
@@ -226,7 +228,7 @@ class JsonParser(ConfigParser):
     """
     Parse using json.
     """
-    def parse(config, filepath):
+    def parse(config: ConfigBase, filepath: str) -> Dict[str, Any]:
         if filepath is None:
             return {}
 
@@ -248,7 +250,7 @@ class JsonParser(ConfigParser):
 
         return data
 
-    def save(config, filepath, data):
+    def save(config: ConfigBase, filepath: str, data: Dict[str, Any]) -> None:
         if filepath is None:
             return
 
@@ -262,6 +264,8 @@ class Config(ConfigBase):
 
 class MemoryConfig(ConfigBase):
     def __init__(self):
+        # An in-memory config has no disk i/o so loading and saving should be disabled.
+        # Doing that should be good enough but for good measure we can also use the nullparser.
         ConfigBase.__init__(self, None, parser=NullParser, doLoading=False, doSaving=False)
 
 

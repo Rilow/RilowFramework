@@ -136,19 +136,11 @@ class _OverrideManagerFactory:
             cls._managers[id] = manager
             return manager
 
-def override(func):
+def override(func: Callable) -> Callable:
     """
     Override decorator.
     """
     return _OverrideManagerFactory.getManager(func).getWrapper(func)
-
-def _onModuleLoad(module):
-    pass
-
-def onFrameworkLoad():
-    return framework.on(framework.Events.MODULE_LOAD, _onModuleLoad)
-
-
 
 if __name__ == '__main__':
     @override

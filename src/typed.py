@@ -5,16 +5,15 @@ Name: typed.py
 Description: strict typed functions in python
 """
 from functools import partial as _partial
-from typing import \
-        _SpecialGenericAlias, _CallableGenericAlias, Any, Callable, Dict, \
-        List, Tuple, Type, TypeVar, NoReturn, Optional, Union, get_origin
+import typing
+import types
 from types import CodeType, FunctionType, MethodType, WrapperDescriptorType
 import sys
 
 # Set this True for debug messages
 __DEBUG__ = False
 
-def _getArgNames(co: CodeType) -> List[str]:
+def _getArgNames(co: types.CodeType) -> typing.List[str]:
     """
     Retruns a list of all argument names
     for a given code object.
@@ -30,7 +29,7 @@ def _getArgNames(co: CodeType) -> List[str]:
     kwonlyargs = list(names[nargs:nargs+nkwargs])
     return args + kwonlyargs
 
-def _getArgs(x: Any) -> Tuple:
+def _getArgs(x: typing.Any) -> typing.Tuple:
     """
     Returns a typing objects args value.
     This returns an empty tuple if no args are
@@ -42,7 +41,7 @@ def _getArgs(x: Any) -> Tuple:
     except:
         return tuple()
 
-def _getBound(x: Any) -> Type:
+def _getBound(x: typing.Any) -> typing.Type:
     """
     Returns a typing objects bound type.
     This is used internally specifically for
@@ -55,16 +54,16 @@ def _getBound(x: Any) -> Type:
     except:
         return None
 
-def _getTypeName(x: Any) -> str:
+def _getTypeName(x: typing.Any) -> str:
     """
     Returns a representable string from a given type.
     """
     # typing.Any
-    if x == Any:
+    if x == typing.Any:
         return "Any"
 
     # typing.NoReturn
-    elif x == NoReturn:
+    elif x == typing.NoReturn:
         return "NoReturn"
 
     # typing.Union -> Always has args, any amount
@@ -128,35 +127,35 @@ def _getTypeName(x: Any) -> str:
                 name = str(x)
         return name
 
-def _isUnion(x: Any) -> bool:
+def _isUnion(x: typing.Any) -> bool:
     """
     Returns True if x is a Union.
     """
     # Check the origin
-    return get_origin(x) is Union
+    return typing.get_origin(x) is typing.Union
 
-def _isList(x: Any) -> bool:
+def _isList(x: typing.Any) -> bool:
     """
     Returns True if x is a List.
     """
     # Check the origin
-    return get_origin(x) == list
+    return typing.get_origin(x) == list
 
-def _isTuple(x: Any) -> bool:
+def _isTuple(x: typing.Any) -> bool:
     """
     Returns True if x is a Tuple.
     """
     # Check the origin
-    return get_origin(x) == tuple
+    return typing.get_origin(x) == tuple
 
-def _isDict(x: Any) -> bool:
+def _isDict(x: typing.Any) -> bool:
     """
     Returns True if x is a Dict.
     """
     # Check the origin
-    return get_origin(x) == dict
+    return typing.get_origin(x) == dict
 
-def _isTypeVar(x: Any) -> bool:
+def _isTypeVar(x: typing.Any) -> bool:
     """
     Returns True if x is a TypeVar.
     """
@@ -166,31 +165,31 @@ def _isTypeVar(x: Any) -> bool:
     # are subscripted) raise errors on
     # instance checks.
     try:
-        return isinstance(x, TypeVar)
+        return isinstance(x, typing.TypeVar)
     except:
         return False
 
-def _isType(x: Any) -> bool:
+def _isType(x: typing.Any) -> bool:
     """
     Returns True if x is Type.
     """
     # HACKHACK: Accessing private class of the typing module
-    return x == Type and x.__class__ == _SpecialGenericAlias
+    return x == typing.Type and x.__class__ == typing._SpecialGenericAlias
 
-def _isBuiltinType(x: Any) -> bool:
+def _isBuiltinType(x: typing.Any) -> bool:
     """
     Returns True if x is generic builtin type.
     """
     return x == type
 
-def _isCallable(x: Any) -> bool:
+def _isCallable(x: typing.Any) -> bool:
     """
     Returns True if x is a Callable.
     """
     # HACKHACK: Accessing private class of the typing module
-    return x.__class__ == _CallableGenericAlias
+    return x.__class__ == typing._CallableGenericAlias
 
-def _isString(x: Any) -> bool:
+def _isString(x: typing.Any) -> bool:
     """
     Returns True if x is a string.
     """
@@ -199,7 +198,7 @@ def _isString(x: Any) -> bool:
     except:
         return False
 
-def _typecheck(v: Any, t: Type) -> bool:
+def _typecheck(v: typing.Any, t: typing.Type) -> bool:
     """
     Checks if the value `v` matches the type `t`.
     Returns False if the types do not match otherwise True.
@@ -212,11 +211,11 @@ def _typecheck(v: Any, t: Type) -> bool:
     check = None
 
     # typing.Any -> matches everything
-    if t == Any:
+    if t == typing.Any:
         check = True
 
     # typing.NoReturn -> This should never be triggered (NoReturn should exit before a typecheck on a return)
-    elif t == NoReturn:
+    elif t == typing.NoReturn:
         raise RuntimeError("NoReturn should not be accessed by the typed wrapper")
 
     # types.NoneType -> Ensure the value is None
@@ -332,7 +331,7 @@ def _typecheck(v: Any, t: Type) -> bool:
         check = isinstance(v, t)
 
     if __DEBUG__:
-        print("[CHCKD]:", v, _getTypeName(t), check)
+        print("[CHCKD]:", f"val={v}", f"type={_getTypeName(v.__class__)}", f"excpected={_getTypeName(t)}", f"result={check}")
 
     return check
 
@@ -350,7 +349,7 @@ class _TypedWrapper:
         attrs = dir(klass)
         for attr in attrs:
             x = getattr(klass, attr)
-            if isinstance(x, (MethodType, FunctionType)) and not attr.startswith("__"):
+            if isinstance(x, (types.MethodType, types.FunctionType)) and not attr.startswith("__"):
                 methods.append(x)
 
         # Mostly we don't wrap dunder methods but for __init__ we make an exception.
@@ -359,7 +358,7 @@ class _TypedWrapper:
 
         for method in methods:
             # Cannot wrap a descriptro wrapper
-            if isinstance(method, WrapperDescriptorType):
+            if isinstance(method, types.WrapperDescriptorType):
                 continue
 
             typedmethod = typed(method)
@@ -368,7 +367,7 @@ class _TypedWrapper:
             setattr(klass, typedmethod.func.__name__, typedmethod)
 
     @classmethod
-    def from_callable(cls, func, type_):
+    def from_callable(cls, func: typing.Callable, type_: type):
         """
         Create a wrapper from a callable.
         This is used when wrapping callables.
@@ -400,7 +399,7 @@ class _TypedWrapper:
         annotations["return"] = return_type
 
         if __DEBUG__:
-            print("[WRCLL]:", func, type_)
+            print("[WRCLL]:", f"{func=}", f"type={type_}")
 
         # Get a dummy typedwrapper (empty)
         wrapper = cls(None, _dummy=True)
@@ -413,7 +412,7 @@ class _TypedWrapper:
 
         return wrapper
 
-    def __init__(self, func: Callable, *, wrap_callables: bool=True, _dummy: bool=False):
+    def __init__(self, func: typing.Callable, *, wrap_callables: bool=True, _dummy: bool=False):
         if _dummy:
             return
 
@@ -432,13 +431,13 @@ class _TypedWrapper:
             if name in rawAnnotations:
                 annotations[name] = rawAnnotations[name]
             else:
-                annotations[name] = Any
+                annotations[name] = typing.Any
 
         # Get return type
         if "return" in rawAnnotations:
             rt = rawAnnotations["return"]
         else:
-            rt = Any
+            rt = typing.Any
 
         annotations["return"] = rt
 
@@ -495,7 +494,7 @@ class _TypedWrapper:
         ret = self.typedfunc(args, kwargs)
 
         if __DEBUG__:
-            print("[CKRTN]:", ret, self.return_type)
+            print("[CKRTN]:", f"{ret=}", f"type={self.return_type}")
 
         if _isCallable(ret) and self.wrap_callables:
             # Wrap the returned callable.
@@ -521,7 +520,9 @@ class _TypedWrapper:
 
         for arg in argzip:
             if __DEBUG__:
-                print("[CHECK]:", arg, argzip[arg], _getTypeName(type(argzip[arg])), _getTypeName(self.annotations[arg]))
+                val = argzip[arg]
+                expected = self.annotations[arg]
+                print("[CHECK]:", f"{arg=}", f"{val=}", f"type={_getTypeName(val.__class__)}", f"expected={_getTypeName(expected)}")
 
             if not _typecheck(argzip[arg], self.annotations[arg]):
                 typename = _getTypeName(self.annotations[arg])
@@ -549,10 +550,10 @@ def _main():
     """
     Testing function
     """
-    X = TypeVar("X", bound=int)
+    X = typing.TypeVar("X", bound=int)
 
     @typed
-    def myFunc(x: int, y=None) -> Callable[[int, int, Optional[bool]], int]:
+    def myFunc(x: int, y=None) -> typing.Callable[[int, int, typing.Optional[bool]], int]:
         def test(x, y, test=None) -> int:
             return int(x + y)
         return test
@@ -577,7 +578,7 @@ def _main():
 
 
     @typed
-    def passInADict(data: Dict) -> None:
+    def passInADict(data: typing.Dict) -> None:
         return data
 
     try:
