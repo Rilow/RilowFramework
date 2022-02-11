@@ -9,6 +9,7 @@ from typing import \
         _SpecialGenericAlias, _CallableGenericAlias, Any, Callable, Dict, \
         List, Tuple, Type, TypeVar, NoReturn, Optional, Union, get_origin
 from types import CodeType, FunctionType, MethodType, WrapperDescriptorType
+import sys
 
 # Set this True for debug messages
 __DEBUG__ = False

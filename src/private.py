@@ -7,9 +7,6 @@ Description: Private functions inside of classes.
 import inspect
 import sys
 
-from framework import define
-define("PRIVATE_PY")
-
 class PrivateError(Exception):
     """
     Raised when trying to access a private method from outside of the allowed namespace.
@@ -34,14 +31,11 @@ def private(func):
             raise TypeError(f"{func.__qualname__} param \"self\" must be an instance of object")
 
         # Get class
-        try:
-            cls = self.__class__
-        except:
-            cls = None
+        cls = self.__class__
 
         # Get caller
         stack = inspect.stack()
-
+        print(self)
         errstring = f"{func.__qualname__} is a private method and cannot be called externally"
 
         if len(stack) < 3:

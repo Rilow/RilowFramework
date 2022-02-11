@@ -8,9 +8,6 @@ from typing import Dict
 import locale as _locale
 import os
 
-from framework import define, defined
-define("LANG_PY")
-
 # Default locale has a different implementation for non-windows.
 import ctypes
 if hasattr(ctypes, "windll"):
@@ -24,11 +21,6 @@ else:
 
     def _getDefaultLocale():
         return _locale.getdefaultlocale()[0]
-
-if defined("PRIVATE_PY"):
-    from private import private
-else:
-    def private(x): return x
 
 # Set this to the locale to use whenever a given locale
 # fails to load, of course you can use `use_fallback=False`
@@ -119,9 +111,7 @@ class Lang:
         locale = _getLocaleFromFile(filepath)
         translations = _getTranslationsFromFile(filepath)
         return cls(locale, translations)
-
-
-    @private
+        
     def __init__(self, locale: str, translations: Dict[str, str]):
         # For blank locale.
         self.locale = locale
@@ -169,7 +159,6 @@ class Lang:
 
 if __name__ == "__main__":
     l = Lang.from_locale("en_US")
-
     print(l.translate("#test"))
     print()
     print(l.translate("#test world!"))

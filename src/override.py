@@ -9,15 +9,12 @@ import inspect
 from typing import Any, Callable, Dict, List, Union, Optional
 import sys
 
-from framework import typed, define
-define("OVERRIDE_PY")
-
-@typed
+# Placeholder for framework
 def _getClassNameFromFunction(func: Callable) -> str:
     if hasattr(func, "__func__"):
-        return _getClassFromFunction(func.__func__)
+        return _getClassNameFromFunction(func.__func__)
     elif hasattr(func, "func"):
-        return _getClassFromFunction(func.func)
+        return _getClassNameFromFunction(func.func)
 
     if hasattr(func, "__self__"):
         return func.__self__.__class__.__qualname__
@@ -55,7 +52,6 @@ def _getClassNameFromFunction(func: Callable) -> str:
     else:
         return cls.__qualname___
 
-@typed
 def _getManagerId(func: Callable) -> str:
     """
     Returns the manager id of a given function.
@@ -66,7 +62,6 @@ def _getManagerId(func: Callable) -> str:
     else:
         return func.__qualname__
 
-@typed
 def _getHash(types: List[type]) -> int:
     """
     Returns the hash to be used for a given list of types.
@@ -86,12 +81,10 @@ def _getHash(types: List[type]) -> int:
     return acc
 
 class _OverrideManager:
-    @typed
     def __init__(self, id: str):
         self.id = id
         self._overrides: Dict[str, Dict[int, Callable]] = {}
 
-    @typed
     def _addOverride(self, func: Callable) -> None:
         """
         Adds an override to the manager.
@@ -105,7 +98,6 @@ class _OverrideManager:
         else:
             self._overrides[name] = {hash: func}
 
-    @typed
     def _callOverride(self, func: Callable, args: Any, kwargs: Any) -> Any:
         name = func.__name__
         types = [type(arg) for arg in args]
@@ -113,7 +105,6 @@ class _OverrideManager:
         override = self._overrides[name][hash]
         return override.__call__(*args, **kwargs)
 
-    @typed
     def getWrapper(self, func: Callable) -> Callable:
         """
         Get an override wrapper for a given func.
@@ -134,7 +125,6 @@ class _OverrideManagerFactory:
     _managers: Dict[str, _OverrideManager] = {}
 
     @classmethod
-    @typed
     def getManager(cls, func: Callable) -> _OverrideManager:
         id = _getManagerId(func)
 
@@ -151,6 +141,14 @@ def override(func):
     Override decorator.
     """
     return _OverrideManagerFactory.getManager(func).getWrapper(func)
+
+def _onModuleLoad(module):
+    pass
+
+def onFrameworkLoad():
+    return framework.on(framework.Events.MODULE_LOAD, _onModuleLoad)
+
+
 
 if __name__ == '__main__':
     @override
