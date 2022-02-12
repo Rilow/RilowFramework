@@ -60,6 +60,9 @@ class QualnameVisitor(ast.NodeVisitor):
 
 
 def profilehook(frame, event, arg):
+    if not _profile_enabled:
+        return profilehook
+
     for hook in _profile_hooks:
         hook(frame, event, arg)
     return profilehook # psuedo code for sys module: sys.profilehook = sys.profilehook(frame, event, arg)
@@ -154,6 +157,11 @@ def enableProfileHook():
     except:
         pass
 
+_profile_enabled = False
+def setProfileHooks(flag):
+    global _profile_enabled
+    _profile_enabled = flag
+
 _useQualnames = False
 _linecache = {}
 _qualnames = {}
@@ -162,16 +170,26 @@ def toggleQualnames():
     global _useQualnames
     _useQualnames = not _useQualnames
 
+def setQualnames(flag):
+    global _useQualnames
+    _useQualnames = flag
+
 def _getQualname(frame):
     file = frame.f_code.co_filename
 
     if file in _qualnames:
         return _qualnames[file].get((frame.f_code.co_name, frame.f_code.co_firstlineno), frame.f_code.co_name)
 
+    if file.startswith("<") and file.endswith(">"):
+        return frame.f_code.co_name
+
     if file not in _linecache:
-        with open(file) as f:
-            lines = f.read().splitlines()
-        _linecache[file] = lines
+        try:
+            with open(file) as f:
+                lines = f.read().splitlines()
+            _linecache[file] = lines
+        except UnicodeDecodeError:
+            return frame.f_code.co_name
     else:
         lines = _linecache[file]
 
@@ -205,6 +223,9 @@ def _getQualname(frame):
 ### Auditing ###
 
 def audithook(name, args):
+    if not _audits_enabled:
+        return audithook
+
     for hook in _audit_hooks:
         hook(name, args)
     return audithook
@@ -213,6 +234,7 @@ _ignored_audits = (
     "object.__getattr__", # Too much output
     "compile", # Contains output of the entire compilation.
     "sys.excepthook", # Can be handled by exceptionhook.
+    "marshal.loads", # Spam
 
 )
 
@@ -220,8 +242,31 @@ def builtinaudithook(name, args):
 
     if name in _ignored_audits:
         return
-    
-    print("[AUDIT]", name, args)
+
+    msg = ""
+    printName = True
+
+    print("[AUDIT] ", end='')
+
+    if name == "import":
+        msg = args[0]
+    elif name == "open":
+        msg = f"{args[0]}, mode={args[1]}"
+    elif name == "exec":
+        code = args[0]
+        if code.co_name == "<module>":
+            msg = code.co_filename
+        else:
+            msg = code.co_name
+
+
+
+    if printName: print(name + " ", end='')
+    if msg: print(msg + " ", end='')
+    else: print(str(args) + " ", end='')
+
+    # endl;
+    print()
 
 def addAuditHook(hook):
     """
@@ -253,14 +298,23 @@ def enableAuditHook():
     except:
         pass
 
+_audits_enabled = False
+def setAuditHooks(flag):
+    global _audits_enabled
+    _audits_enabled = flag
+
 ### Exception hook ###
 def _excepthook_audit_hook(name, args):
     if name != "sys.excepthook":
         return
 
     excepthook(*args[1:])
+    return _excepthook_audit_hook
 
 def excepthook(type, value, traceback):
+    if not _exceptions_enabled:
+        return
+
     for hook in _exception_hooks:
         hook(type, value, traceback)
 
@@ -280,10 +334,15 @@ def enableExceptionHook():
     """
     addExceptionHook(builtinexcepthook)
 
+_exceptions_enabled = False
+def setExceptionHooks(flag):
+    global _exceptions_enabled
+    _exceptions_enabled = flag
+
 # Hooks
-_profile_hooks = []
-_audit_hooks = []
-_exception_hooks = []
+_profile_hooks = [builtinprofilehook]
+_audit_hooks = [builtinaudithook]
+_exception_hooks = [builtinexcepthook]
 
 # Set system hooks
 sys.setprofile(profilehook)

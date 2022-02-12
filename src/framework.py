@@ -11,21 +11,30 @@ import importlib.util
 import sys
 from types import ModuleType
 
-# Set True to enable profiler hook in debug module.
-# This is only used if the debug module is loaded.
+#### Setup Debugging ####
+
+# Set False to disable the debugger on startup.
+DEBUGGER_ENABLED_ON_START = True
+
+# Set False to disable profiling.
 PROFILER_ENABLED = True
 
-# Set True to enable audit hook in debug module.
-# This is only used if the debug module is loaded.
+# Set False to disable auditing.
 AUDIT_ENABLED = True
 
-# Set true to enable qualnames for profiling.
-# This is only used if the debug module is loaded.
+# Set False to disable qualnames (will use code names instead)
 QUALNAMES_ENABLED = True
 
-# Set True to enable the builtin exception hook of the debug module.
-# This is only used if the debug module is loaded.
+# Set False to disable exception hooks.
 EXCEPTIONS_ENABLED = True
+
+if DEBUGGER_ENABLED_ON_START:
+    import debug
+    debug.setQualnames(QUALNAMES_ENABLED)
+    debug.setAuditHooks(AUDIT_ENABLED)
+    debug.setProfileHooks(PROFILER_ENABLED)
+    debug.setExceptionHooks(EXCEPTIONS_ENABLED)
+
 #### Struct ####
 class Struct:
     """
@@ -300,15 +309,10 @@ def _onFrameworkLoad(loaded_modules: Dict[str, ModuleType]) -> None:
         return
 
     debug = getModule("debug")
-
-    if QUALNAMES_ENABLED and not debug._useQualnames:
-        debug.toggleQualnames()
-    if PROFILER_ENABLED:
-        debug.enableProfileHook()
-    if AUDIT_ENABLED:
-        debug.enableAuditHook()
-    if EXCEPTIONS_ENABLED:
-        debug.enableExceptionHook()
+    debug.setQualnames(QUALNAMES_ENABLED)
+    debug.setAuditHooks(AUDIT_ENABLED)
+    debug.setProfileHooks(PROFILER_ENABLED)
+    debug.setExceptionHooks(EXCEPTIONS_ENABLED)
     return
 
 on(Events.FRAMEWORK_LOAD, _onFrameworkLoad)
