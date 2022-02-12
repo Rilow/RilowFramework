@@ -8,6 +8,10 @@ import ast
 from collections import defaultdict
 import sys
 import os
+from typing import Optional, List, Tuple, Callable, Any, TypeVar, Type
+from types import FrameType, TracebackType
+
+Internal = TypeVar("Internal", bound=list)
 
 class QualnameVisitor(ast.NodeVisitor):
     """
@@ -19,10 +23,12 @@ class QualnameVisitor(ast.NodeVisitor):
         ast.NodeVisitor.__init__(self)
 
         # Stack of names and dict
-        self.stack = []
-        self.qualnames = {}
+        self.stack: List[str] = []
 
-    def add_qualname(self, node, name=None):
+        # (name, linenumber) -> qualname
+        self.qualnames: Dict[Tuple[str, int], str] = {}
+
+    def add_qualname(self, node: ast.AST, name: Optional[str]=None) -> None:
         # Add a new qualname from a given node (optional name)
         name = name or node.name
         self.stack.append(name)
@@ -32,7 +38,7 @@ class QualnameVisitor(ast.NodeVisitor):
             lineno = node.lineno
         self.qualnames.setdefault((name, lineno), ".".join(self.stack))
 
-    def visit_FunctionDef(self, node, name=None):
+    def visit_FunctionDef(self, node: ast.AST, name: Optional[str]=None) -> None:
         self.add_qualname(node, name)
         self.stack.append("<locals>")
         if isinstance(node, ast.Lambda):
@@ -57,10 +63,10 @@ class QualnameVisitor(ast.NodeVisitor):
 
     visit_AsyncFunctionDef = visit_FunctionDef
 
-    def visit_lambda(self, node):
+    def visit_lambda(self, node: ast.AST) -> None:
         self.visit_FunctionDef(node, "<lambda>")
 
-    def visit_ClassDef(self, node):
+    def visit_ClassDef(self, node: ast.AST) -> None:
         self.add_qualname(node)
         self.generic_visit(node)
         self.stack.pop()
@@ -88,15 +94,23 @@ class Debugger:
         self._exceptions = [self.exception]
 
         # Qualname caching
-        self._qualnames = {}
-        self._linecache = {}
+        # (name, linenumber) -> qualname
+        self._qualnames: Dict[Tuple[str, int], str] = {}
+
+        # file -> lines
+        self._linecache: Dict[str, List[str]] = {}
 
         # Add hooks
         sys.setprofile(self._profilerhook)
         sys.addaudithook(self._auditerhook)
         sys.addaudithook(self._exceptionshook)
 
-    def _profilerhook(self, frame, event, arg):
+    def _profilerhook(self, frame: FrameType, event: str, arg: Any) -> Callable:
+        """
+        The internal profiler hook. Do not call.
+
+        This is a system profiler which calls all profile hooks.
+        """
         if not self.PROFILER_ENABLED:
             return self._profilerhook
 
@@ -104,7 +118,12 @@ class Debugger:
             hook(frame, event, arg)
         return self._profilerhook
 
-    def _auditerhook(self, name, args):
+    def _auditerhook(self, name: str, args: Any) -> Callable:
+        """
+        The internal audit hook. Do not call.
+
+        This is a audit hook which calls all audit hooks.
+        """
         if not self.AUDITER_ENABLED:
             return self._auditerhook
 
@@ -112,7 +131,13 @@ class Debugger:
             hook(name, args)
         return self._auditerhook
 
-    def _exceptionshook(self, name, args):
+    def _exceptionshook(self, name: str, args: Any) -> Callable:
+        """
+        The internal exceptions hook. Do not call.
+
+        This is an audithook that will trigger all exception hooks
+        if the audit name is "sys.excepthook"
+        """
         if not self.EXCEPTIONS_ENABLED or name != "sys.excepthook":
             return self._exceptionshook
 
@@ -120,49 +145,99 @@ class Debugger:
             hook(*args)
         return self._exceptionshook
 
-    def addProfiler(self, func):
+    #                                    frame,   event, arg    return
+    def addProfiler(self, func: Callable[[FrameType, str, Any], None]) -> None:
+        """
+        Add a profile hook.
+        Does nothing if the function is already a profile hook.
+        """
         if func not in self._profilers:
             self._profilers.append(func)
 
-    def removeProfiler(self, func):
+    def removeProfiler(self, func: Callable) -> None:
+        """
+        Removes a profile hook.
+        Does nothing if the function is not a profile hook.
+        """
         if func in self._profilers:
             self._profiles.remove(func)
 
-    def addAuditer(self, func):
+    #                                  name, args,  return
+    def addAuditer(self, func: Callable[[str, Any], None]) -> None:
+        """
+        Add an audit hook.
+        Does nothing if the function is already an audit hook.
+        """
         if func not in self._auditers:
             self._auditers.append(func)
 
-    def removeAuditer(self, func):
+    def removeAuditer(self, func: Callable) -> None:
+        """
+        Removes an audit hook.
+        Does nothing if the function is not an audit hook.
+        """
         if func in self._auditers:
             self._auditers.remove(func)
 
-    def addException(self, func):
+    #                                      type,            value,     traceback,      return
+    def addException(self, func: Callable[[Type[Exception], Exception, TracebackType], None]) -> None:
+        """
+        Add an exception hook.
+        Does nothing if the function is already an exception hook.
+        """
         if func not in self._exceptions:
             self._exceptions.append(func)
 
-    def removeException(self, func):
+    def removeException(self, func: Callable) -> None:
+        """
+        Remove an exception hook.
+        Does nothing if the function is not an exception hook.
+        """
         if func in self._exceptions:
             self._exceptions.remove(func)
 
-    def setProfiler(self, flag):
+    def setProfiler(self, flag: bool) -> None:
+        """
+        Set the PROFILER_ENABLED flag.
+        """
         self.PROFILER_ENABLED = flag
 
-    def setQualnames(self, flag):
+    def setQualnames(self, flag: bool) -> None:
+        """
+        Set the QUALNAMES_ENABLED flag.
+        """
         self.QUALNAMES_ENABLED = flag
 
-    def setAuditer(self, flag):
+    def setAuditer(self, flag: bool) -> None:
+        """
+        Set the AUDITER_ENABLED flag.
+        """
         self.AUDITER_ENABLED = flag
 
-    def setExceptions(self, flag):
+    def setExceptions(self, flag: bool) -> None:
+        """
+        Set the EXCEPTIONS_ENABLED flag.
+        """
         self.EXCEPTIONS_ENABLED = flag
 
-    def setAll(self, flag):
+    def setAll(self, flag: bool) -> None:
+        """
+        Shortcut for calling
+        setProfiler(flag)
+        setQualnames(flag)
+        setAuditer(flag)
+        setExceptions(flag)
+        """
         self.setProfiler(flag)
         self.setQualnames(flag)
         self.setAuditer(flag)
         self.setExceptions(flag)
 
-    def _getLines(self, file):
+    def _getLines(self, file: str) -> Optional[List[str]]:
+        """
+        Get lines for a file from the linecache.
+        Used Internally.
+        """
         if file not in self._linecache:
             try:
                 with open(file) as f:
@@ -172,7 +247,11 @@ class Debugger:
 
         return self._linecache.get(file, None)
 
-    def _getQualname(self, frame):
+    def _getQualname(self, frame: FrameType) -> str:
+        """
+        Returns the qualname for a given frame.
+        Used internally.
+        """
         code = frame.f_code
         file = code.co_filename
 
@@ -201,7 +280,11 @@ class Debugger:
         self._qualnames[file] = visitor.qualnames
         return self._qualnames[file].get((code.co_name, code.co_firstlineno), code.co_name)
 
-    def profiler(self, frame, event, arg, indent=[0]):
+    def profiler(self, frame: FrameType, event: str, arg: Any, indent: Internal=[0]) -> None:
+        """
+        Builtin profiler callback.
+        Prints profile info to stdout
+        """
         if event[0] == "c" and hasattr(arg, "__qualname__"):
             # Most c calls contain the function as the arg.
             qualname = f"builtins.{arg.__qualname__}"
@@ -241,7 +324,11 @@ class Debugger:
             print("-" * indent[0], f"err {arg}")
             return
 
-    def auditer(self, name, args):
+    def auditer(self, name: str, args: Any) -> None:
+        """
+        Default auditer callback.
+        Prints audit info depending on the type.
+        """
         if name in self.IGNORED_AUDITS:
             return
 
@@ -270,7 +357,11 @@ class Debugger:
 
         print(str(s)) # std::endl;
 
-    def exception(self, type, value, traceback):
+    def exception(self, type: Type[Exception], value: Exception, traceback: TracebackType):
+        """
+        Builtin exception call back.
+        Prints the exception to stdout.
+        """
         return print(f"[EXCEPTION] {type.__qualname__}: {value}")
 
 # Only provide once instance of the debugger.
