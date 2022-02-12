@@ -11,6 +11,21 @@ import importlib.util
 import sys
 from types import ModuleType
 
+# Set True to enable profiler hook in debug module.
+# This is only used if the debug module is loaded.
+PROFILER_ENABLED = True
+
+# Set True to enable audit hook in debug module.
+# This is only used if the debug module is loaded.
+AUDIT_ENABLED = True
+
+# Set true to enable qualnames for profiling.
+# This is only used if the debug module is loaded.
+QUALNAMES_ENABLED = True
+
+# Set True to enable the builtin exception hook of the debug module.
+# This is only used if the debug module is loaded.
+EXCEPTIONS_ENABLED = True
 #### Struct ####
 class Struct:
     """
@@ -278,6 +293,22 @@ def _onFrameworkLoad(loaded_modules: Dict[str, ModuleType]) -> None:
     # We wait untill all modules are finalized before doing MODULE_LOAD events.
     for name in loaded_modules:
         do(Events.MODULE_LOAD, name)
+    
+    # Now that all of the loading is done we can do some loading for the framework.
+    # Enable debugging.
+    if "debug" not in modules:
+        return
+
+    debug = getModule("debug")
+
+    if QUALNAMES_ENABLED and not debug._useQualnames:
+        debug.toggleQualnames()
+    if PROFILER_ENABLED:
+        debug.enableProfileHook()
+    if AUDIT_ENABLED:
+        debug.enableAuditHook()
+    if EXCEPTIONS_ENABLED:
+        debug.enableExceptionHook()
     return
 
 on(Events.FRAMEWORK_LOAD, _onFrameworkLoad)
