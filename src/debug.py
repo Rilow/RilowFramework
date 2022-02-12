@@ -7,16 +7,23 @@ Description: Useful debugging tools.
 import ast
 from collections import defaultdict
 import sys
+import os
 
-### Profiling ###
 class QualnameVisitor(ast.NodeVisitor):
+    """
+    A qualname visitor is used to get qualnames
+    from nodes and is only used if
+    QUALNAMES_ENABLED == True
+    """
     def __init__(self):
         ast.NodeVisitor.__init__(self)
 
+        # Stack of names and dict
         self.stack = []
         self.qualnames = {}
 
     def add_qualname(self, node, name=None):
+        # Add a new qualname from a given node (optional name)
         name = name or node.name
         self.stack.append(name)
         if getattr(node, "decorator_list", ()):
@@ -58,299 +65,216 @@ class QualnameVisitor(ast.NodeVisitor):
         self.generic_visit(node)
         self.stack.pop()
 
+class Debugger:
 
-def profilehook(frame, event, arg):
-    if not _profile_enabled:
-        return profilehook
+    IGNORED_AUDITS = (
+        "object.__getattr__",
+        "compile",
+        "sys.excepthook",
+        "marshal.loads"
+    )
 
-    for hook in _profile_hooks:
-        hook(frame, event, arg)
-    return profilehook # psuedo code for sys module: sys.profilehook = sys.profilehook(frame, event, arg)
+    def __init__(self):
 
-def builtinprofilehook(frame, event, arg, indent=[0]):
-    """
-    A builtin profile hook.
-    This can be enabled with enableProfileHook()
-    """
-    if arg and hasattr(arg, "__qualname__"):
-        co_name = arg.__qualname__
-    else:
-        co_name = frame.f_code.co_name
+        # Flags
+        self.PROFILER_ENABLED = False
+        self.QUALNAMES_ENABLED = False
+        self.AUDITER_ENABLED = False
+        self.EXCEPTIONS_ENABLED = False
 
-    indent[0] = max(indent[0], 0) # Clamp indent to positive number
+        # Hooks
+        self._profilers = [self.profiler]
+        self._auditers = [self.auditer]
+        self._exceptions = [self.exception]
 
-    # The order of these is important.
-    # Because python code is very slow (compared to c)
-    # we want to be as fast as possible for c functions so
-    # we don't hold up the rest of the program flow.
-    #print(event, arg)
-    if event == "c_call":
-        indent[0] += 2
-        print("-" * indent[0] + "> call c function", co_name)
-        return
+        # Qualname caching
+        self._qualnames = {}
+        self._linecache = {}
 
-    elif event == "c_return":
-        print("<" + "-" * indent[0], "exit c function", co_name)
-        indent[0] -= 2
-        return
+        # Add hooks
+        sys.setprofile(self._profilerhook)
+        sys.addaudithook(self._auditerhook)
+        sys.addaudithook(self._exceptionshook)
 
-    elif event == "call":
-        if _useQualnames:
-            qualname = _getQualname(frame)
+    def _profilerhook(self, frame, event, arg):
+        if not self.PROFILER_ENABLED:
+            return self._profilerhook
+
+        for hook in self._profilers:
+            hook(frame, event, arg)
+        return self._profilerhook
+
+    def _auditerhook(self, name, args):
+        if not self.AUDITER_ENABLED:
+            return self._auditerhook
+
+        for hook in self._auditers:
+            hook(name, args)
+        return self._auditerhook
+
+    def _exceptionshook(self, name, args):
+        if not self.EXCEPTIONS_ENABLED or name != "sys.excepthook":
+            return self._exceptionshook
+
+        for hook in self._exceptionshook:
+            hook(*args)
+        return self._exceptionshook
+
+    def addProfiler(self, func):
+        if func not in self._profilers:
+            self._profilers.append(func)
+
+    def removeProfiler(self, func):
+        if func in self._profilers:
+            self._profiles.remove(func)
+
+    def addAuditer(self, func):
+        if func not in self._auditers:
+            self._auditers.append(func)
+
+    def removeAuditer(self, func):
+        if func in self._auditers:
+            self._auditers.remove(func)
+
+    def addException(self, func):
+        if func not in self._exceptions:
+            self._exceptions.append(func)
+
+    def removeException(self, func):
+        if func in self._exceptions:
+            self._exceptions.remove(func)
+
+    def setProfiler(self, flag):
+        self.PROFILER_ENABLED = flag
+
+    def setQualnames(self, flag):
+        self.QUALNAMES_ENABLED = flag
+
+    def setAuditer(self, flag):
+        self.AUDITER_ENABLED = flag
+
+    def setExceptions(self, flag):
+        self.EXCEPTIONS_ENABLED = flag
+
+    def setAll(self, flag):
+        self.setProfiler(flag)
+        self.setQualnames(flag)
+        self.setAuditer(flag)
+        self.setExceptions(flag)
+
+    def _getLines(self, file):
+        if file not in self._linecache:
+            try:
+                with open(file) as f:
+                    self._linecache[file] = f.read().splitlines()
+            except UnicodeDecodeError:
+                pass 
+
+        return self._linecache.get(file, None)
+
+    def _getQualname(self, frame):
+        code = frame.f_code
+        file = code.co_filename
+
+        if file in self._qualnames:
+            return self._qualnames[file].get((code.co_name, code.co_firstlineno), code.co_name)
+
+        if file.startswith("<") and file.endswith(">"): # <module> <locals> <lambda>
+            return code.co_name
+
+        try:
+            lines = self._getLines(file)
+        except MemoryError:
+            self._linecache.clear()
+            lines = self._getLines(file)
+
+        if lines is None:
+            return code.co_name
+
+        text = "\n".join(lines)
+        lines = [line.rstrip("\r\n") for line in lines]
+
+        tree = ast.parse(text)
+        visitor = QualnameVisitor()
+        visitor.visit(tree)
+
+        self._qualnames[file] = visitor.qualnames
+        return self._qualnames[file].get((code.co_name, code.co_firstlineno), code.co_name)
+
+    def profiler(self, frame, event, arg, indent=[0]):
+        if event[0] == "c" and hasattr(arg, "__qualname__"):
+            # Most c calls contain the function as the arg.
+            qualname = f"builtins.{arg.__qualname__}"
+        elif self.QUALNAMES_ENABLED:
+            qualname = self._getQualname(frame)
+
+            if qualname == "<module>":
+                name = os.path.basename(frame.f_code.co_filename)
+                qualname = f"<module '{name}'>"
+
         else:
-            qualname = co_name
-
-        indent[0] += 2
-        print("-" * indent[0] + "> call function", qualname)
-        return
-
-    elif event == "return":
-        if co_name == "<module>":
+            qualname = frame.f_code.co_name
+        # The order here is important (handle c calls fast for performance reasons.)
+        # Python is very slow. Having to call slow python code every time you call a
+        # c function can cause a lot of latency in the c code.
+        if event == "c_call":
+            indent[0] += 2
+            print("-" * indent[0], f"{qualname}()")
             return
 
-        if _useQualnames:
-            qualname = _getQualname(frame)
-        else:
-            qualname = co_name
+        elif event == "c_return":
+            #print("-" * indent[0], f"return {qualname}")
+            indent[0] -= 2
+            return
 
-        print("<" + "-" * indent[0], "exit function", qualname)
-        indent[0] -= 2
-        return
+        elif event == "call":
+            indent[0] += 2
+            print("-" * indent[0], f"{qualname}()")
+            return
 
-    elif event == "c_exception":
-        # c_exception is rarer than the others. so its at the bottom.
-        print("-" * indent[0] + "> err", arg)
-        return
+        elif event == "return":
+            #print("-" * indent[0], f"return {qualname}")
+            indent[0] -= 2
+            return
 
-    else:
-        raise RuntimeError(f"unknown event {event}")
+        else: # "c_exception"
+            print("-" * indent[0], f"err {arg}")
+            return
 
-    return
+    def auditer(self, name, args):
+        if name in self.IGNORED_AUDITS:
+            return
 
-def addProfileHook(hook):
-    """
-    Add a new profile hook.
-    """
-    if not callable(hook):
-        raise TypeError("hook must be callable")
-    elif hook in _profile_hooks:
-        raise ValueError("hook already present")
+        msg = ""
 
-    _profile_hooks.append(hook)
+        print("[AUDIT] ", end='')
 
-def removeProfileHook(hook):
-    """
-    Remove a profile hook.
-    """
-    if hook not in _profile_hooks:
-        raise ValueError("hook not found")
-
-    _profile_hooks.remove(hook)
-
-def enableProfileHook():
-    """
-    Enable the builtin profile hook.
-    See `builtinprofilehook`
-    """
-    try:
-        addProfileHook(builtinprofilehook)
-    except:
-        pass
-
-_profile_enabled = False
-def setProfileHooks(flag):
-    global _profile_enabled
-    _profile_enabled = flag
-
-_useQualnames = False
-_linecache = {}
-_qualnames = {}
-
-def toggleQualnames():
-    global _useQualnames
-    _useQualnames = not _useQualnames
-
-def setQualnames(flag):
-    global _useQualnames
-    _useQualnames = flag
-
-def _getQualname(frame):
-    file = frame.f_code.co_filename
-
-    if file in _qualnames:
-        return _qualnames[file].get((frame.f_code.co_name, frame.f_code.co_firstlineno), frame.f_code.co_name)
-
-    if file.startswith("<") and file.endswith(">"):
-        return frame.f_code.co_name
-
-    if file not in _linecache:
-        try:
-            with open(file) as f:
-                lines = f.read().splitlines()
-            _linecache[file] = lines
-        except UnicodeDecodeError:
-            return frame.f_code.co_name
-    else:
-        lines = _linecache[file]
-
-    text = '\n'.join(lines)
-    lines = [line.rstrip("\r\n") for line in lines]
-
-    tree = ast.parse(text)
-    _nodes_by_line = defaultdict(list)
-
-    for node in ast.walk(tree):
-        for child in ast.iter_child_nodes(node):
-            child.parent = node
-
-        if hasattr(node, "lineno"):
-            if hasattr(node, "end_lineno") and isinstance(node, ast.expr):
-                linenos = range(node.lineno, node.end_lineno + 1)
+        if name == "import":
+            msg = args[0]
+        elif name == "open":
+            fp = args[0]
+            mode = args[1]
+            msg = f"{fp}, {mode=}"
+        elif name == "exec":
+            code = args[0]
+            if code.co_name == "<module>":
+                msg = code.co_filename
             else:
-                linenos = [node.lineno]
+                msg = code.co_name
 
-            for lineno in linenos:
-                _nodes_by_line[lineno].append(node)
+        print(name + " ", end='')
 
-    visitor = QualnameVisitor()
-    visitor.visit(tree)
-    
-    # Update qualnames with visitor qualnames.
-    _qualnames[file] = visitor.qualnames
-    qualname = visitor.qualnames.get((frame.f_code.co_name, frame.f_code.co_firstlineno), frame.f_code.co_name)
-    return qualname
-    
-### Auditing ###
+        # Print message if available otherwise just
+        # print the args.
+        s = msg if msg else args
 
-def audithook(name, args):
-    if not _audits_enabled:
-        return audithook
+        print(str(s)) # std::endl;
 
-    for hook in _audit_hooks:
-        hook(name, args)
-    return audithook
+    def exception(self, type, value, traceback):
+        return print(f"[EXCEPTION] {type.__qualname__}: {value}")
 
-_ignored_audits = (
-    "object.__getattr__", # Too much output
-    "compile", # Contains output of the entire compilation.
-    "sys.excepthook", # Can be handled by exceptionhook.
-    "marshal.loads", # Spam
-
-)
-
-def builtinaudithook(name, args):
-
-    if name in _ignored_audits:
-        return
-
-    msg = ""
-    printName = True
-
-    print("[AUDIT] ", end='')
-
-    if name == "import":
-        msg = args[0]
-    elif name == "open":
-        msg = f"{args[0]}, mode={args[1]}"
-    elif name == "exec":
-        code = args[0]
-        if code.co_name == "<module>":
-            msg = code.co_filename
-        else:
-            msg = code.co_name
-
-
-
-    if printName: print(name + " ", end='')
-    if msg: print(msg + " ", end='')
-    else: print(str(args) + " ", end='')
-
-    # endl;
-    print()
-
-def addAuditHook(hook):
-    """
-    Adds a new audit hook.
-    """
-    if not callable(hook):
-        raise TypeError("hook must be callable")
-    elif hook in _audit_hooks:
-        raise ValueError("hook already present")
-
-    _audit_hooks.append(hook)
-
-def removeAuditHook(hook):
-    """
-    Removes an audit hook.
-    """
-    if hook not in _audit_hooks:
-        raise ValueError("hook not found")
-
-    _audit_hooks.remove(hook)
-
-def enableAuditHook():
-    """
-    Enables the builtin audit hook.
-    See `builtinaudithook`
-    """
-    try:
-        addAuditHook(builtinaudithook)
-    except:
-        pass
-
-_audits_enabled = False
-def setAuditHooks(flag):
-    global _audits_enabled
-    _audits_enabled = flag
-
-### Exception hook ###
-def _excepthook_audit_hook(name, args):
-    if name != "sys.excepthook":
-        return
-
-    excepthook(*args[1:])
-    return _excepthook_audit_hook
-
-def excepthook(type, value, traceback):
-    if not _exceptions_enabled:
-        return
-
-    for hook in _exception_hooks:
-        hook(type, value, traceback)
-
-def builtinexcepthook(type, value, traceback):
-    print("[EXCEPTION]", f"{type.__qualname__}:", f"{value}")
-
-def addExceptionHook(func):
-    """
-    Adds an exception hook.
-    """
-    if func not in _exception_hooks:
-        _exception_hooks.append(func)
-
-def enableExceptionHook():
-    """
-    Enables the builtin exception hook.
-    """
-    addExceptionHook(builtinexcepthook)
-
-_exceptions_enabled = False
-def setExceptionHooks(flag):
-    global _exceptions_enabled
-    _exceptions_enabled = flag
-
-# Hooks
-_profile_hooks = [builtinprofilehook]
-_audit_hooks = [builtinaudithook]
-_exception_hooks = [builtinexcepthook]
-
-# Set system hooks
-sys.setprofile(profilehook)
-sys.addaudithook(audithook)
-sys.addaudithook(_excepthook_audit_hook)
+# Only provide once instance of the debugger.
+Debugger = Debugger()
 
 if __name__ == "__main__":
-    toggleQualnames()
-    enableExceptionHook()
-    enableAuditHook()
-    enableProfileHook()
+    Debugger.setAll(True)

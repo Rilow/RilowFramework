@@ -13,27 +13,21 @@ from types import ModuleType
 
 #### Setup Debugging ####
 
-# Set False to disable the debugger on startup.
-DEBUGGER_ENABLED_ON_START = True
+# Set True to enable debugging.
+__DEBUG_MODE__ = True
 
-# Set False to disable profiling.
-PROFILER_ENABLED = True
+# Set True to enable debugging before framework is initialized (rather than after.)
+__DEBUG_ON_START__ = True
 
-# Set False to disable auditing.
-AUDIT_ENABLED = True
-
-# Set False to disable qualnames (will use code names instead)
-QUALNAMES_ENABLED = True
-
-# Set False to disable exception hooks.
-EXCEPTIONS_ENABLED = True
-
-if DEBUGGER_ENABLED_ON_START:
-    import debug
-    debug.setQualnames(QUALNAMES_ENABLED)
-    debug.setAuditHooks(AUDIT_ENABLED)
-    debug.setProfileHooks(PROFILER_ENABLED)
-    debug.setExceptionHooks(EXCEPTIONS_ENABLED)
+if __DEBUG_ON_START__:
+    try:
+        import debug
+    except ImportError:
+        pass
+    else:
+        debug.Debugger.setAll(__DEBUG_MODE__)
+        del debug
+    
 
 #### Struct ####
 class Struct:
@@ -309,10 +303,7 @@ def _onFrameworkLoad(loaded_modules: Dict[str, ModuleType]) -> None:
         return
 
     debug = getModule("debug")
-    debug.setQualnames(QUALNAMES_ENABLED)
-    debug.setAuditHooks(AUDIT_ENABLED)
-    debug.setProfileHooks(PROFILER_ENABLED)
-    debug.setExceptionHooks(EXCEPTIONS_ENABLED)
+    debug.Debugger.setAll(__DEBUG_MODE__)
     return
 
 on(Events.FRAMEWORK_LOAD, _onFrameworkLoad)
