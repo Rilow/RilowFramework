@@ -179,15 +179,18 @@ class _TypeWrapperMeta(type):
         Returns an operation wrapper function for a class subclassing TypeWrapper as defined in OPERATIONS.
         Used internally. Do not call.
         """
-        def operationwrapper(self, other: Any) -> Any:
+        def operationwrapper(self, other: Optional[Any]=None) -> Any:
             """
             Internal operation wrapper.
             """
             operation = OPERATIONS.get(attr, None)
 
+            # If other is None then a unary operation was attempted.
+            args = tuple() if not other else (other,)
+
             if attr not in self.ALLOWED_OPERATIONS and (operation and operation not in self.ALLOWED_OPERATIONS):
                 right = attr in RIGHT_OPERATIONS
-                return self._handle_restricted_operation(OPERATIONS[attr], other)
+                return self._handle_restricted_operation(OPERATIONS[attr], *args)
 
             if isinstance(other, TypeWrapper):
                 othervalue = other.value
@@ -287,19 +290,26 @@ class TypeWrapper(metaclass=_TypeWrapperMeta):
         self.type: Type[T] = type
         self.value: T = value
 
-    def _handle_restricted_operation(self, operand: str, other: Any, right: bool=False) -> None:
+    def _handle_restricted_operation(self, operand: str, other: Optional[Any]=None, right: bool=False) -> None:
         """
         This is called internally by _TypeWrapperMeta when a operation is attempted that
         is not allowed.
         """
         qualname = self.__class__.__qualname__
         otherqualname = other.__class__.__qualname__
-        if right:
+        if other is None:
+            s = f"'{qualname}'"
+        elif right:
             s = f"'{otherqualname}' and '{qualname}'"
         else:
             s = f"'{qualname}' and '{otherqualname}'"
 
-        raise TypeError(f"unsupported operand type(s) for {operand}: {s}")
+        if other is None:
+            t = "unary type"
+        else:
+            t = "operand type(s) for"
+
+        raise TypeError(f"unsupported {t} {operand}: {s}")
 
     def _handle_restricted_magic_method(self, name: str, default: bool=False) -> None:
         """
@@ -355,3 +365,7 @@ if __name__ == "__main__":
     x.clear()
     print(x)
     print(sys.getsizeof(x))
+
+    x = MyTypeWrapper(2)
+    print(x)
+    print(+x)
