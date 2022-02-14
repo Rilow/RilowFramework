@@ -7,8 +7,9 @@ Description: Helpful classes/functions for types.
 import operator
 import math
 import sys
+from typing import Dict, Set, Callable, Optional, Type, Tuple, Any, T
 
-COMPARISONS = {
+COMPARISONS: Dict[str, str] = {
     # Comparison operators
     "__lt__": "<", # x<y
     "__le__": "<=", # x<=y
@@ -18,7 +19,7 @@ COMPARISONS = {
     "__ne__": "!=", # x!=y
 }
 
-OPERATIONS = {
+OPERATIONS: Dict[str, str] = {
     # Operation operators
     "__add__": "+", # x+y
     "__sub__": "-", # x-y
@@ -39,10 +40,10 @@ OPERATIONS = {
 }
 
 # Right Operation Operators (__radd__)
-RIGHT_OPERATIONS = {}
+RIGHT_OPERATIONS: Dict[str, str] = {}
 
 # Augmented Operation Operators (__iadd__)
-AUGMENTED_OPERATIONS = {}
+AUGMENTED_OPERATIONS: Dict[str, str] = {}
 
 # All operation operators can be made into right and augmented operators
 for method, operand in OPERATIONS.items():
@@ -52,13 +53,13 @@ for method, operand in OPERATIONS.items():
     RIGHT_OPERATIONS[right] = operand
     AUGMENTED_OPERATIONS[augment] = augmentoperand
 
-UNARY_OPERATIONS = {
+UNARY_OPERATIONS: Dict[str, str] = {
     "__pos__": "+", # +x
     "__neg__": "-", # -x
     "__invert__": "~", #~x
 }
 
-MAGIC_METHODS = {
+MAGIC_METHODS: Set[str] = {
     "__call__", # x()
     "__getitem__", # x[slice]
     "__setitem__", # x[slice] = y
@@ -73,7 +74,7 @@ MAGIC_METHODS = {
 
 # These are magic methods that should not be re-wrapped by the class
 # and should not type check.
-TYPE_CONVERSION_METHODS = {
+TYPE_CONVERSION_METHODS: Set[str] = {
     "__str__", # str(x)
     "__repr__", # repr(x)
     "__int__", # int(x)
@@ -97,7 +98,7 @@ TYPE_CONVERSION_METHODS = {
     "__bytes__", # bytes(x)
 }
 
-ATTRIBUTE_METHODS = {
+ATTRIBUTE_METHODS: Set[str] = {
     "__getattr__", # getattr(x, y) || missing x.y
     "__setattr__", # setattr(x, y, z) || x.y = z
     "__delattr__", # delattr(x, y) || del x.y
@@ -107,7 +108,7 @@ ATTRIBUTE_METHODS = {
     "__delete__" # del x
 }
 
-MAGIC_METHOD_TO_FUNCTION = {
+MAGIC_METHOD_TO_FUNCTION: Set[Callable] = {
     "__getattr__": getattr,
     "__setattr__": setattr,
     "__delattr__": delattr,
@@ -139,7 +140,7 @@ MAGIC_METHOD_TO_FUNCTION = {
     "__delitem__": lambda x, item: x.value.__delitem__(item),
 }
 
-TYPEWRAPPER_IGNORED_ATTRIBUTES = {
+TYPEWRAPPER_IGNORED_ATTRIBUTES: Set[str] = {
     "__getattr__",
     "__setattr__",
     "__delattr__",
@@ -173,8 +174,15 @@ class _TypeWrapperMeta(type):
     Used internally by TypeWrapper. And should only be used by TypeWrapper.
     """
     @classmethod
-    def _getOperationWrapper(cls, attr, func, _default=False):
-        def operationwrapper(self, other):
+    def _getOperationWrapper(cls, attr: str, func: Optional[Callable], _default: bool=False) -> Callable:
+        """
+        Returns an operation wrapper function for a class subclassing TypeWrapper as defined in OPERATIONS.
+        Used internally. Do not call.
+        """
+        def operationwrapper(self, other: Any) -> Any:
+            """
+            Internal operation wrapper.
+            """
             operation = OPERATIONS.get(attr, None)
 
             if attr not in self.ALLOWED_OPERATIONS and (operation and operation not in self.ALLOWED_OPERATIONS):
@@ -204,8 +212,15 @@ class _TypeWrapperMeta(type):
         return operationwrapper
 
     @classmethod
-    def _getMagicMethodWrapper(cls, attr, func, _default=False):
-        def magicmethodwrapper(self, *args, **kwargs):
+    def _getMagicMethodWrapper(cls, attr: str, func: Optional[Callable], _default: bool=False) -> Callable:
+        """
+        Returns a magic method wrapper function for a class subclassing TypeWrapper as defined in MAGIC_METHODS.
+        Used internally. Do not call.
+        """
+        def magicmethodwrapper(self, *args: Any, **kwargs: Any) -> Any:
+            """
+            Internal magic method wrapper function.
+            """
             if attr not in self.ALLOWED_OPERATIONS and (attr in MAGIC_METHOD_TO_FUNCTION and MAGIC_METHOD_TO_FUNCTION[attr] not in self.ALLOWED_OPERATIONS):
                 return self._handle_restricted_magic_method(attr, _default)
 
@@ -226,7 +241,10 @@ class _TypeWrapperMeta(type):
         magicmethodwrapper.__func__ = func
         return magicmethodwrapper
 
-    def __new__(cls, name, bases, attrs):
+    def __new__(cls: Type, name: str, bases: Tuple, attrs: Dict[str, Any]) -> Type:
+        """
+        Create a new TypeWrapper subclass.
+        """
         klass = type.__new__(cls, name, bases, attrs)
 
         typewrapper = klass if "TypeWrapper" not in globals() else TypeWrapper
@@ -264,12 +282,16 @@ class _TypeWrapperMeta(type):
 class TypeWrapper(metaclass=_TypeWrapperMeta):
     ALLOWED_OPERATIONS = []
 
-    def __init__(self, value=None, type=None):
+    def __init__(self, value: T=None, type: Type[T]=None):
         # If type is none then do not type restrict the value.
-        self.type = type
-        self.value = value
+        self.type: Type[T] = type
+        self.value: T = value
 
-    def _handle_restricted_operation(self, operand, other, right=False):
+    def _handle_restricted_operation(self, operand: str, other: Any, right: bool=False) -> None:
+        """
+        This is called internally by _TypeWrapperMeta when a operation is attempted that
+        is not allowed.
+        """
         qualname = self.__class__.__qualname__
         otherqualname = other.__class__.__qualname__
         if right:
@@ -279,7 +301,11 @@ class TypeWrapper(metaclass=_TypeWrapperMeta):
 
         raise TypeError(f"unsupported operand type(s) for {operand}: {s}")
 
-    def _handle_restricted_magic_method(self, name, default=False):
+    def _handle_restricted_magic_method(self, name: str, default: bool=False) -> None:
+        """
+        This is called internally by _TypeWrapperMeta when a magic method is attempted to be 
+        called which is not allowed to be.
+        """
         if default:
             raise TypeError(f"could not call magic method '{name}'")
         else:
@@ -329,9 +355,3 @@ if __name__ == "__main__":
     x.clear()
     print(x)
     print(sys.getsizeof(x))
-
-    # TODO: Add typing to this (like type checking)
-    # TODO: Fix retard _IntClamp class so that it doesnt have all those methods
-    # (only add ones to fix any errors e.g. only add what we need.)
-    # Add a clamp() function to util with clamp(x, min, max)
-    # TODO: make sure to commit after 1 and 2 are done. Then do a seperate commit for the clamp()
