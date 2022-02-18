@@ -168,11 +168,42 @@ MAGIC_METHODS = MAGIC_METHODS.union(ATTRIBUTE_METHODS)
 
 MAGIC_NAMES = set(OPERATIONS.keys()).union(MAGIC_METHODS)
 
+# ALL_OPERATIONS can be used on TypeWrapper.ALLOWED_OPERATIONS to signify that all operations are allowed.
+ALL_OPERATIONS = MAGIC_NAMES.difference(TYPEWRAPPER_IGNORED_ATTRIBUTES)
+
+# COPY_OPERATIONS_ONCE can be used and will copy all operations present in the value onto the classes
+# ALLOWED_OPERATIONS.
+COPY_OPERATIONS_ONCE = 0
+
+# COPY_OPERATIONS can be used to copy operations present in the value onto the instance, thus the copy
+# is done for every instance rather than once for the class in COPY_OPERATIONS_ONCE
+COPY_OPERATIONS = 1
+
 class _TypeWrapperMeta(type):
     """
     Do not use this meta class directly you WILL run into errors.
     Used internally by TypeWrapper. And should only be used by TypeWrapper.
     """
+    @classmethod
+    def _getAllowedOperations(cls, self):
+        klass = self.__class__
+        if klass.ALLOWED_OPERATIONS != COPY_OPERATIONS and klass.ALLOWED_OPERATIONS != COPY_OPERATIONS_ONCE:
+            return
+
+        valuetype = self.value.__class__
+
+        # Replace the instances or the classes ALLOWED_OPERATIONS depending on the mode.
+        if klass.ALLOWED_OPERATIONS == COPY_OPERATIONS:
+            obj = self
+        else: # COPY_OPERATIONS_ONCE
+            obj = klass
+
+        obj.ALLOWED_OPERATIONS = []
+
+        for attr in dir(valuetype):
+            if attr in MAGIC_NAMES and attr not in TYPEWRAPPER_IGNORED_ATTRIBUTES:
+                obj.ALLOWED_OPERATIONS.append(attr)
+
     @classmethod
     def _getOperationWrapper(cls, attr: str, func: Optional[Callable], _default: bool=False) -> Callable:
         """
@@ -183,6 +214,9 @@ class _TypeWrapperMeta(type):
             """
             Internal operation wrapper.
             """
+            if self.ALLOWED_OPERATIONS == COPY_OPERATIONS or self.ALLOWED_OPERATIONS == COPY_OPERATIONS_ONCE:
+                cls._getAllowedOperations(self)
+
             operation = OPERATIONS.get(attr, None)
 
             # If other is None then a unary operation was attempted.
@@ -224,6 +258,9 @@ class _TypeWrapperMeta(type):
             """
             Internal magic method wrapper function.
             """
+            if self.ALLOWED_OPERATIONS == COPY_OPERATIONS:
+                cls._getAllowedOperations(self)
+
             if attr not in self.ALLOWED_OPERATIONS and (attr in MAGIC_METHOD_TO_FUNCTION and MAGIC_METHOD_TO_FUNCTION[attr] not in self.ALLOWED_OPERATIONS):
                 return self._handle_restricted_magic_method(attr, _default)
 
@@ -268,7 +305,7 @@ class _TypeWrapperMeta(type):
 
             # If the attribute is a magic name and there is a NEWLY DEFINED function eg. overriding TypeWrapper method,
             # and that said method is not in ALLOWED_OPERATIONS then add it.
-            if attr in MAGIC_NAMES and getattr(typewrapper, attr, None) != func and attr not in klass.ALLOWED_OPERATIONS:
+            if klass.ALLOWED_OPERATIONS != COPY_OPERATIONS and attr in MAGIC_NAMES and getattr(typewrapper, attr, None) != func and attr not in klass.ALLOWED_OPERATIONS:
                 # Add operand if available otherwise add the attribute.
                 klass.ALLOWED_OPERATIONS.append(OPERATIONS.get(attr, attr))
 
@@ -343,6 +380,12 @@ if __name__ == "__main__":
         def __imul__(self, other):
             return -1
 
+    class MyOtherTypeWrapper(TypeWrapper):
+        ALLOWED_OPERATIONS = COPY_OPERATIONS_ONCE
+
+    class MyOtherOtherTypeWrapper(TypeWrapper):
+        ALLOWED_OPERATIONS = COPY_OPERATIONS
+
     x = MyTypeWrapper(4)
     print(x)
     print(x+2)
@@ -368,4 +411,21 @@ if __name__ == "__main__":
 
     x = MyTypeWrapper(2)
     print(x)
-    print(+x)
+
+    try:
+        print(+x)
+        print("This should have raised an error!")
+    except TypeError as exc:
+        print(f"{exc.__class__.__qualname__}: {exc}")
+
+
+    f = MyOtherTypeWrapper(4)
+    print(f+2)
+    print(MyOtherTypeWrapper.ALLOWED_OPERATIONS)
+
+    f2 = MyOtherOtherTypeWrapper(4)
+    print(f2+2)
+
+    # Notice its still set to `1`  the value of COPY_OPERATIONS because
+    # the operations are copied per instance. not per class as COPY_OPERATIONS_ONCE is (above)
+    print(MyOtherOtherTypeWrapper.ALLOWED_OPERATIONS)

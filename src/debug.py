@@ -161,10 +161,16 @@ class Debugger:
         # file -> lines
         self._linecache: Dict[str, List[str]] = {}
 
+        # Should we defer?
+        # This is used for exceptions. If we should defer then
+        # the exception is ignored.
+        self._should_defer = False
+
         # Add hooks
         sys.setprofile(self._profilerhook)
         sys.addaudithook(self._auditerhook)
         sys.addaudithook(self._exceptionshook)
+        sys.excepthook = self._defer_excepthook
 
     def _profilerhook(self, frame: FrameType, event: str, arg: Any) -> Callable:
         """
@@ -192,6 +198,12 @@ class Debugger:
             hook(name, args)
         return self._auditerhook
 
+    def _defer(self) -> None:
+        """
+        Should we defer the exception?
+        """
+        self._should_defer = True
+
     def _exceptionshook(self, name: str, args: Any) -> Callable:
         """
         The internal exceptions hook. Do not call.
@@ -202,9 +214,33 @@ class Debugger:
         if not self.EXCEPTIONS_ENABLED or name != "sys.excepthook":
             return self._exceptionshook
 
-        for hook in self._exceptionshook:
-            hook(*args)
+        args = args[1:] # <built-in function excepthook> is the first arg.
+        defers = []
+
+        for hook in self._exceptions:
+            self._should_defer = False
+            hook(*args, self._defer)
+            defers.append(self._should_defer)
+        
+        # We only defer if every callback thinks we should defer.
+        self._should_defer = all(defers)
+        
+        # NOTE: This audit hook is called internally by python right
+        # before the sys.excepthook function is called.
+        # This means we don't need to call _defer_excepthook directly
+        # it will ALWAYS be called right after this function. 
         return self._exceptionshook
+
+    def _defer_excepthook(self, exc_type: Type[Exception], exc_value: Exception, exc_tb: TracebackType) -> Callable:
+        if not self._should_defer:
+            # sys.__excepthook__ is a copy of sys.excepthook.
+            # Because we overwrite sys.excepthook with _defer_excepthook we
+            # can call the internal copy. This will raise the exception.
+            sys.__excepthook__(exc_type, exc_value, exc_tb)
+        else:
+            # Defer the exception. Do nothing.
+            self._should_defer = False
+            return self._defer_excepthook
 
     #                                    frame,   event, arg    return
     def addProfiler(self, func: Callable[[FrameType, str, Any], None]) -> None:
@@ -410,15 +446,21 @@ class Debugger:
 
         print(str(s)) # std::endl;
 
-    def exception(self, type: Type[Exception], value: Exception, traceback: TracebackType):
+    def exception(self, type: Type[Exception], value: Exception, traceback: TracebackType, defer: Callable):
         """
         Builtin exception call back.
         Prints the exception to stdout.
         """
-        return print(f"[EXCEPTION] {type.__qualname__}: {value}")
+        # Output the error
+        print(f"[EXCEPTION] {type.__qualname__}: {value}")
+
+        # Defer
+        defer()
 
 # Only provide once instance of the debugger.
 Debugger = Debugger()
 
 if __name__ == "__main__":
     Debugger.setAll(True)
+    raise TypeError("test")
+    print("test")

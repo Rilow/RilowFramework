@@ -9,6 +9,11 @@ from typing import Iterable, Callable, Union, Optional
 Number = Union[int, float, complex]
 NumberTypes = (int, float, complex)
 
+__all__ = [
+	"forEach",
+	"clamp"
+]
+
 def forEach(i: Iterable, func: Callable) -> None:
 	if not isinstance(i, Iterable):
 		raise TypeError("i must be iterable")
@@ -34,3 +39,13 @@ def clamp(x: Number, min_: Optional[Number]=None, max_: Optional[Number]=None) -
 
 	return max(min(x, max_), min_)
 
+# TODO:
+# Remove the idea of the framework
+# and either make each module standalone,
+# or declare their optional dependencies and
+# make them have alternatives.
+# Move all functionality inside of framework into
+# different modules.
+# e.g. events.py, struct.py etc
+
+# ClampedInteger() ALLOWED_OPERATIONS = rilowtyped.ALL_OPERATIONS
