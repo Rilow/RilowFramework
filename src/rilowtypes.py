@@ -138,6 +138,7 @@ MAGIC_METHOD_TO_FUNCTION: Set[Callable] = {
     "__getitem__": lambda x, item: x.value.__getitem__(item),
     "__setitem__": lambda x, item, value: x.value.__setitem__(item, value),
     "__delitem__": lambda x, item: x.value.__delitem__(item),
+    "__iter__": lambda x: tuple(y for y in x.value.__iter__())
 }
 
 TYPEWRAPPER_IGNORED_ATTRIBUTES: Set[str] = {
@@ -150,8 +151,6 @@ TYPEWRAPPER_IGNORED_ATTRIBUTES: Set[str] = {
     "__delete__",
     "__str__",
     "__repr__",
-    ""
-
 }
 
 # Clean namespace
@@ -168,6 +167,12 @@ MAGIC_METHODS = MAGIC_METHODS.union(ATTRIBUTE_METHODS)
 
 MAGIC_NAMES = set(OPERATIONS.keys()).union(MAGIC_METHODS)
 
+# Wrapped Operations are those which re-wrap return values with
+# the type wrapper class.
+WRAPPED_OPERATIONS = set(AUGMENTED_OPERATIONS.keys())
+
+WRAPPED_METHODS = set()
+
 # ALL_OPERATIONS can be used on TypeWrapper.ALLOWED_OPERATIONS to signify that all operations are allowed.
 ALL_OPERATIONS = MAGIC_NAMES.difference(TYPEWRAPPER_IGNORED_ATTRIBUTES)
 
@@ -178,6 +183,34 @@ COPY_OPERATIONS_ONCE = 0
 # COPY_OPERATIONS can be used to copy operations present in the value onto the instance, thus the copy
 # is done for every instance rather than once for the class in COPY_OPERATIONS_ONCE
 COPY_OPERATIONS = 1
+
+def doOperation(op: str, x: Any, y: Optional[Any]=None) -> Any:
+    if y is None:
+        if op == "+": return +x
+        elif op == "-": return -x
+        elif op == "~": return ~x
+        else: raise TypeError(f"unknown operation {op}")
+
+    if op == "+": return x + y
+    elif op == "-": return x - y
+    elif op == "*": return x * y
+    elif op == "**": return x ** y
+    elif op == "/": return x / y
+    elif op == "//": return x // y
+    elif op == "%": return x % y
+    elif op == "@": return x @ y
+    elif op == "<<": return x << y
+    elif op == ">>": return x >> y
+    elif op == "&": return x & y
+    elif op == "^": return x ^ y
+    elif op == "|": return x | y
+    elif op == "<": return x < y
+    elif op == ">": return x > y
+    elif op == "<=": return x <= y
+    elif op == ">=": return x >= y
+    elif op == "==": return x == y
+    elif op == "!=": return x != y
+    else: raise TypeError(f"unknown operation {op}")
 
 class _TypeWrapperMeta(type):
     """
@@ -234,13 +267,21 @@ class _TypeWrapperMeta(type):
 
             # Check if the function is defined.
             if func is None:
-                operationfunc = getattr(operator, attr)
-                result = operationfunc.__call__(self.value, othervalue)
-
+                if hasattr(operator, attr):
+                    result = getattr(operator, attr).__call__(self.value, othervalue)
+                else:
+                    operand = OPERATIONS[attr]
+                    if attr in RIGHT_OPERATIONS:
+                        result = doOperation(operand, othervalue, self.value)
+                    else:
+                        result = doOperation(operand, self.value, othervalue)
             else:
                 result = func.__call__(self, other)
 
-            return result
+            if attr in WRAPPED_OPERATIONS:
+                return self.__class__(result)
+            else:
+                return result
 
         operationwrapper.__qualname__ = attr
         if func is not None:
@@ -272,7 +313,10 @@ class _TypeWrapperMeta(type):
             else:
                 result = func.__call__(self, *args, **kwargs)
 
-            return result
+            if attr in WRAPPED_METHODS:
+                return self.__class__(result)
+            else:
+                return result
 
 
         magicmethodwrapper.__qualname__ = attr
@@ -372,7 +416,7 @@ class TypeWrapper(metaclass=_TypeWrapperMeta):
 
 if __name__ == "__main__":
     class MyTypeWrapper(TypeWrapper):
-        ALLOWED_OPERATIONS = ["__add__", "__setitem__", "__getitem__", "__delitem__", "__sizeof__"]
+        ALLOWED_OPERATIONS = ["__add__", "__setitem__", "__getitem__", "__delitem__", "__sizeof__", "__iadd__"]
 
         def __init__(self, value):
             super().__init__(value)
@@ -429,3 +473,7 @@ if __name__ == "__main__":
     # Notice its still set to `1`  the value of COPY_OPERATIONS because
     # the operations are copied per instance. not per class as COPY_OPERATIONS_ONCE is (above)
     print(MyOtherOtherTypeWrapper.ALLOWED_OPERATIONS)
+
+    f3 = MyTypeWrapper(2)
+    f3 += 2
+    print(f3, f3.__class__)

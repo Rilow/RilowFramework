@@ -11,68 +11,9 @@ import os
 from typing import Optional, List, Tuple, Callable, Any, TypeVar, Type
 from types import FrameType, TracebackType
 
+from util import ClampedInt
+
 Internal = TypeVar("Internal", bound=list)
-
-class _IntClamp:
-    """
-    This is an internal class used by the profile.
-    It provides two things: A mutable integer wrapper and
-    Integer clamping.
-    """
-    def __init__(self, defaultValue: int, iMin: Optional[int]=None, iMax: Optional[int]=None):
-        self.value = defaultValue
-
-        if iMin is None and iMax is None:
-            raise TypeError("Max and min cannot both be None")
-
-        self.iMin = iMin
-        self.iMax = iMax
-
-        # Do an initial clamp because we don't know if the
-        # default value is within range.
-        self.clamp()
-
-    def __str__(self):
-        return str(self.value)
-
-    def __repr__(self):
-        return repr(self.value)
-
-    def set(self, value: int) -> int:
-        """
-        Set the value.
-        """
-        self.value = value
-        return self.clamp()
-
-    def get(self, value: int) -> int:
-        """
-        Get the value.
-        """
-        return self.clamp()
-
-    def clamp(self) -> int:
-        """
-        Performs integer clamping.
-        """
-        #self.value = min(max(self.value, self.iMin), self.iMax)
-        if self.iMin is not None:
-            self.value = max(self.value, self.iMin)
-        if self.iMax is not None:
-            self.value = min(self.value, self.iMax)
-        return self.value
-
-    def __isub__(self, other):
-        return self.set(self.value - other)
-
-    def __iadd__(self, other):
-        return self.set(self.value + other)
-
-    def __rmul__(self, other):
-        if isinstance(other, str):
-            return other * self.value
-        else:
-            raise TypeError("unsupported operation")
 
 class QualnameVisitor(ast.NodeVisitor):
     """
@@ -377,7 +318,7 @@ class Debugger:
         self._qualnames[file] = visitor.qualnames
         return self._qualnames[file].get((code.co_name, code.co_firstlineno), code.co_name)
 
-    def profiler(self, frame: FrameType, event: str, arg: Any, indent: Internal=_IntClamp(0, 2, None)) -> None:
+    def profiler(self, frame: FrameType, event: str, arg: Any, indent: Internal=ClampedInt(0, 2, None)) -> None:
         """
         Builtin profiler callback.
         Prints profile info to stdout
