@@ -7,7 +7,7 @@ integer values for each key.
 """
 from typing import Any
 
-from rilowstruct import Struct
+from rstruct import Struct
 
 def enum(*args: Any) -> Struct:
     """

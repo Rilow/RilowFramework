@@ -6,7 +6,7 @@ Description: An easy to use events manager.
 """
 from typing import Union, List, Dict, Callable
 
-from rilowenum import enum
+from renum import enum
 
 # EventType can be either the event name (str   ) or the events code (int)
 EventType = Union[str, int]

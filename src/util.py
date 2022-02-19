@@ -6,7 +6,7 @@ Description: Utility functions
 """
 from typing import Iterable, Callable, Union, Optional
 
-import rilowtypes as _types
+from rtypes import TypeWrapper, ALL_OPERATIONS, doOperation
 
 Number = Union[int, float, complex]
 NumberTypes = (int, float, complex)
@@ -14,11 +14,14 @@ NumberTypes = (int, float, complex)
 __all__ = [
 	"ClampedInt",
 	"forEach",
-	"clamp"
+	"clamp",
+
+	# Exported from rtypes as a utility function.
+	"doOperation",
 ]
 
-class ClampedInt(_types.TypeWrapper):
-	ALLOWED_OPERATIONS = _types.ALL_OPERATIONS
+class ClampedInt(TypeWrapper):
+	ALLOWED_OPERATIONS = ALL_OPERATIONS
 
 	def __init__(self, x: int=0, min: Optional[int]=None, max: Optional[int]=None):
 		self.min = min
@@ -35,7 +38,7 @@ class ClampedInt(_types.TypeWrapper):
 			del temp
 
 		self._value = x
-		_types.TypeWrapper.__init__(self, x)
+		TypeWrapper.__init__(self, x)
 
 	@property
 	def value(self):

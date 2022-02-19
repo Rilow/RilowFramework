@@ -11,8 +11,8 @@ from events import EventManager, Events
 import lang
 from override import override
 from private import private
-from rilowenum import enum
-from rilowtypes import TypeWrapper
-from rilowstruct import Struct
+from renum import enum
+from rtypes import TypeWrapper, ALL_OPERATIONS, COPY_OPERATIONS_ONCE, COPY_OPERATIONS
+from rstruct import Struct, FrozenStruct
 from typed import typed
 from util import *
