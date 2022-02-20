@@ -91,8 +91,10 @@ class _OverrideManager:
         """
         name = func.__name__
         types = list(func.__annotations__.values())
+        # TODO: Remove Return annotation. 
+        # TODO: Fix `self` annotation.
+        #print(types)
         hash = _getHash(types)
-
         if name in self._overrides:
             self._overrides[name][hash] = func
         else:
@@ -102,7 +104,10 @@ class _OverrideManager:
         name = func.__name__
         types = [type(arg) for arg in args]
         hash = _getHash(types)
-        override = self._overrides[name][hash]
+        override = self._overrides[name].get(hash, None)
+        if override is None:
+            typenames = [t.__qualname__ for t in types]
+            raise TypeError("no override available for: %s" % (typenames))
         return override.__call__(*args, **kwargs)
 
     def getWrapper(self, func: Callable) -> Callable:
