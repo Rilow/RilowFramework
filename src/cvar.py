@@ -125,16 +125,28 @@ class _ConVarManager:
 
     def __call__(self, name: str, helpString: str, *args: Any) -> CVarType:
         cvar = _new_convar(name, helpString, *args)
-        self._cvars[name] = cvar
+        self.register(cvar)
         return cvar
 
-    def get(self, name: str) -> CVarType:
+    def register(self, cvar: CVarType) -> None:
+        """
+        Registers a cvar into the manager.
+        """
+        self._cvars[cvar.name] = cvar
+
+    def get(self, name: str, raiseIfNotFound: bool=False) -> CVarType:
         if name not in self._cvars:
-            raise TypeError("CVar %s not found" % name)
+            if raiseIfNotFound:
+                raise TypeError("CVar %s not found" % name)
+            return _dummycvar
         return self._cvars[name]
 
 # Create a single instance of the convar manager.
 cvar = _ConVarManager()
+
+# Create the dummycvar Used by cvar.get()
+# (not registered.)
+_dummycvar = ConCommand("dummy", "", NULL_CALLBACK)
 
 if __name__ == "__main__":
     def test(args, arg2):
@@ -153,3 +165,7 @@ if __name__ == "__main__":
     t2.execute("test2")
     t3 = cvar.get("testvalue2")
     t3.execute("test3")
+
+    # Should recieve the dummy cvar
+    t4 = cvar.get("testing123testing123")
+    print(t4, t4.name)
