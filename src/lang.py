@@ -133,20 +133,30 @@ class Lang:
             return ""
         elif string[0] != "#":
             string = "#" + string
-            key = string[1:]
-        else:
-            key = string
-
+        key = string[1:]
         return self.translations.get(key, string)
 
     def translate(self, string: str) -> str:
+        # If there is no # in a string it's safe to say that
+        # the string contains no keys.
+        if "#" not in string:
+            return string
+
         # Iterate through the string translating as we come across "#"
         translated = ""
         key = ""
         keyFound = False
 
+        # Use the previous char to check for escaped # (\#)
+        prevC = ""
+
         for c in string:
-            if c == "#" and not keyFound:
+            if c == "#" and prevC == "\\":
+                # Remove the escape character.
+                prevC = c
+                translated = translated[:len(translated)-1] + prevC # prevC == "#"
+                continue
+            elif c == "#" and prevC != "\\" and not keyFound:
                 keyFound = True
                 continue
             elif keyFound:
@@ -158,6 +168,7 @@ class Lang:
                     key += c
                     continue
 
+            prevC = c
             translated += c
 
         if keyFound:
@@ -167,8 +178,12 @@ class Lang:
 
 if __name__ == "__main__":
     l = Lang.from_locale("en_US")
-    print(l.translate("#test"))
+    print(l.translate("#test")) # translate key
     print()
-    print(l.translate("#test world!"))
+    print(l.translate("#test world!")) # translate key + text
     print()
-    print(l.translate("#test test #test #test #t world!"))
+    print(l.translate("#test test #test #test #t world!")) # translate key + test + unknown key
+    print()
+    print(l.translate("testing")) # translate no #
+    print()
+    print(l.translate(r"\#test")) # translate escaped #

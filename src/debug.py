@@ -13,6 +13,9 @@ from types import FrameType, TracebackType
 
 from util import ClampedInt
 
+# Not really sure what to name this, its used as a type hint
+# for a argument that is only passed in/modified by the function itself.
+# (i.e. only used internally)
 Internal = TypeVar("Internal", bound=list)
 
 class QualnameVisitor(ast.NodeVisitor):

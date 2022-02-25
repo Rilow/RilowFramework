@@ -4,7 +4,7 @@ Copyright (c) 2022 Rilow, All rights reserved.
 Name: util.py
 Description: Utility functions
 """
-from typing import Iterable, Callable, Union, Optional
+from typing import Iterable, Callable, Union, Optional, Dict, Type
 
 from rtypes import TypeWrapper, ALL_OPERATIONS, doOperation
 
@@ -51,6 +51,16 @@ class ClampedInt(TypeWrapper):
 
 		self._value = clamp(value, self.min, self.max)
 
+class Singleton:
+	__singleton_instances__: Dict[Type, object] = {}
+
+	@classmethod
+	def getInstance(cls) -> object:
+		instances = Singleton.__singleton_instances__
+		if cls not in instances:
+			instances[cls] = cls()
+		return instances[cls]
+		
 def forEach(i: Iterable, func: Callable) -> None:
 	if not isinstance(i, Iterable):
 		raise TypeError("i must be iterable")
