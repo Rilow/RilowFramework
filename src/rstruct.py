@@ -31,12 +31,12 @@ class Struct:
             setattr(self, key, kwargs[key])
 
     def __str__(self):
-        s = "<Struct("
+        s = f"<{self.__class__.__qualname__}("
 
         # For empty structs, otherwise
         # it shows "<Struc)>"
         if len(self.__dict__) == 0:
-            return "<Struct()>"
+            return s + ")>"
 
         for arg in self.__dict__:
             s += f"{arg}={getattr(self, arg)}, "

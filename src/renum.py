@@ -23,7 +23,7 @@ def _enum(structklass: T, *args: Any) -> T:
         data[arg] = counter
         counter += 1
 
-    return Struct(**data)
+    return structklass(**data)
 
 def enum(*args: Any) -> Struct:
     """
