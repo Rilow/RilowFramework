@@ -17,8 +17,10 @@ from events import EventManager, Events
 import lang
 from override import override
 from private import private
+from profiler import Profiler
 from renum import enum
-from rtypes import TypeWrapper, ALL_OPERATIONS, COPY_OPERATIONS_ONCE, COPY_OPERATIONS
 from rstruct import Struct, FrozenStruct
+from rtest import *
+from rtypes import TypeWrapper, ALL_OPERATIONS, COPY_OPERATIONS_ONCE, COPY_OPERATIONS
 from typed import typed
 from util import *

@@ -546,7 +546,19 @@ def _test() -> None:
 
     result = mytest()
     assertRaises(myTestThatRaises, RAssertionError)
-    #print(result.function, result.name, result.passed)
+    # print(result.function, result.name, result.passed)
+
+__all__ = [
+    "TestSuite",
+    "startup", "startupAll",
+    "teardown", "teardownAll",
+    "test",
+]
+
+# Copy assertion methods.
+for attr in globals().copy():
+    if attr.startswith("assert") and attr[0] != "_":
+        __all__.append(attr)
 
 if __name__ == "__main__":
     _test()
