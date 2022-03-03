@@ -4,17 +4,20 @@ Copyright (c) 2022 Rilow, All rights reserved.
 Name: rtest.py
 Description: A simple testing library.
 """
+from typing import Any, Callable, Type, Iterable, Union, List, Dict, Optional
+
+Number = Union[float, int]
 
 class RAssertionError(AssertionError):
+    """
+    A subclass of AssertionError used by this testing library.
+    This is useful to differentiate a normal assertion
+    from one caused by this library.
+    """
     pass
 
-# Constant Values
-INF = float("inf")
-NEG_INF = float("-inf")
-NAN = float("NaN")
-
 # Internal Assert Functions.
-def _assert(x, msg=""):
+def _assert(x: Any, msg: Optional[str]="") -> None:
     """
     Same as `assert x`
     Raises RAssertionError if x is false.
@@ -30,7 +33,11 @@ def _assert(x, msg=""):
 # original (or call the original) by using `__assert__`
 __assert__ = _assert
 
-def _assertNoError(func, msg=""):
+def _assertNoError(func: Callable, msg: Optional[str]="") -> None:
+    """
+    Asserts that function `func` does not raise an exception.
+    Calls _assert(x) where x is True if an exception was raised.
+    """
     try:
         func()
     except:
@@ -40,7 +47,11 @@ def _assertNoError(func, msg=""):
 
     _assert(exc, msg)
 
-def _assertError(func, type_, msg=""):
+def _assertError(func: Callable, type_: Type[Exception], msg: Optional[str]="") -> None:
+    """
+    Asserts that function `func` raises an exception of type `type_`
+    Calls _assert(x) where x is True if an exception of type `type_` was raised.
+    """
     try:
         func()
     except type_:
@@ -53,94 +64,100 @@ def _assertError(func, type_, msg=""):
     return _assert(exc)
 
 # Public Assert Functions
-def assertTrue(x, msg=""):
+def assertTrue(x: Any, msg: Optional[str]="") -> None:
     """
     Assert that x is True.
     """
     _assert(x, msg)
 
-def assertFalse(x, msg=""):
+def assertFalse(x: Any, msg: Optional[str]="") -> None:
     """
     Assert that x is False.
     """
     _assert(not x, msg)
 
-def assertNone(x, msg=""):
+def assertNone(x: Any, msg: Optional[str]="") -> None:
     """
     Assert that x is None
     """
     _assert(x is None, msg)
 
-def assertNotNone(x, msg=""):
+def assertNotNone(x: Any, msg: Optional[str]="") -> None:
     """
     Assert that x is not None
     """
     _assert(x is not None, msg)
 
-def assertContains(item, x, msg=""):
+def assertContains(item: Any, x: Iterable, msg: Optional[str]="") -> None:
     """
     Assert that `x` contains `item`
     """
     assertIterable(x, msg)
     _assert(item in x, msg)
 
-def assertDoesNotContain(item, x, msg=""):
+def assertDoesNotContain(item: Any, x: Iterable, msg: Optional[str]="") -> None:
     """
     Assert that `x` does not contain `item`
     """
     assertIterable(x, msg)
     _assert(item not in x, msg)
 
-def assertIs(x, y, msg=""):
+def assertIs(x: Any, y: Any, msg: Optional[str]="") -> None:
     """
     Assert x is y
     """
     _assert(x is y, msg)
 
-def assertIsNot(x, y, msg=""):
+def assertIsNot(x: Any, y: Any, msg: Optional[str]="") -> None:
     """
     Assert x is not y
     """
     _assert(x is not y, msg)
 
-def assertEqual(x, y, msg=""):
+def assertEqual(x: Any, y: Any, msg: Optional[str]="") -> None:
     """
     Assert x == y
     """
     _assert(x == y, msg)
 
-def assertNotEqual(x, y, msg=""):
+def assertNotEqual(x: Any, y: Any, msg: Optional[str]="") -> None:
     """
     Assert x != y
     """
     _assert(x != y, msg)
 
-def assertIterable(x, msg=""):
+def assertIterable(x: Any, msg: Optional[str]="") -> None:
     """
     Assert that x is iterable.
     """
     _assertNoError(lambda: iter(x), msg)
 
-def assertNotNaN(x, msg=""):
+def assertNotNaN(x: Any, msg: Optional[str]="") -> None:
     """
     Assert x is not NaN (not a number).
     """
     # float("NaN") == float("NaN") => False
     _assert(x == x)
 
-def assertIsInstance(x, y, msg=""):
+def assertIsInstance(x: Any, y: Type, msg: Optional[str]="") -> None:
     """
     Assert x is an instance of y
     """
     _assert(isinstance(x, y))
 
-def assertInRange(n, x, y):
-    _assert((x < y) and (n > x and n < y))
+def assertInRange(n: Number, x: Number, y: Number, msg: Optional[str]="") -> None:
+    """
+    Assert that x < n < y
+    """
+    _assert((x < y) and (n > x and n < y), msg)
 
-def assertNotInRange(n, x, y):
-    _assert((x < y) and (n < x or n > y))
+def assertNotInRange(n: Number, x: Number, y: Number, msg: Optional[str]="") -> None:
+    """
+    Assert that n < x || n > y
+    """
+    _assert((x < y) and (n < x or n > y), msg)
 
-def _getArgs(args, funcName):
+def _getArgs(args: List[Any], funcName: str) -> List[Any]:
     """
     Internal function used by function with *args varargs that require at
     least one argument. Returns any nested list.
@@ -154,34 +171,34 @@ def _getArgs(args, funcName):
         args = args[0]
     return args
 
-def assertAll(*args, msg=""):
+def assertAll(*args: Any, msg: Optional[str]="") -> None:
     """
     Assert all(*args)
     """
     args = _getArgs(args, "assertAll")
     _assert(all(args), msg)
 
-def assertNotAll(*args, msg=""):
+def assertNotAll(*args: Any, msg: Optional[str]="") -> None:
     """
     Assert all(not arg for arg in *args)
     """
     args = _getArgs(args, "assertNotAll")
     _assert(all([not x for x in args]), msg)
 
-def assertAny(*args, msg=""):
+def assertAny(*args: Any, msg: Optional[str]="") -> None:
     """
     Assert any(*args)
     """
     args = _getArgs(args, "assertAny")
     _assert(any(args), msg)
 
-def assertRaises(func, exc, *args, msg="", **kwargs):
+def assertRaises(func: Callable, exc: Type[Exception], *args: Any, msg: Optional[str]="", **kwargs: Any) -> None:
     """
     Assert that function `func` raises exception(s) `exc`
     """
     _assertError(lambda: func(*args, **kwargs), exc, msg)
 
-def assertDoesNotRaise(func, *args, msg="", **kwargs):
+def assertDoesNotRaise(func: Callable, *args: Any, msg: Optional[str]="", **kwargs: Any) -> None:
     """
     Assert that function `func` does not raise exception(s)
     """
@@ -191,10 +208,10 @@ class TestResult:
     """
     A class that holds the result of a single test.
     """
-    def __init__(self, test, passed):
-        self.test = test
-        self.name = test.name
-        self.function = test.function
+    def __init__(self, test_: "test", passed: bool):
+        self.test = test_
+        self.name = test_.name
+        self.function = test_.function
         self.passed = passed
 
 class _TestSuiteMeta(type):
@@ -227,11 +244,6 @@ class _TestSuiteMeta(type):
         attrs["_teardown"] = _teardown
         attrs["_teardownAll"] = _teardownAll
 
-        # Copy all assertion methods.
-        def _TestSuiteMetaAssertionMethodWrapper(self, *args, **kwargs):
-
-            func(*args, **kwargs)
-
         return type.__new__(cls, name, bases, attrs)
 
 class TestSuite(metaclass=_TestSuiteMeta):
@@ -241,7 +253,7 @@ class TestSuite(metaclass=_TestSuiteMeta):
             return globals()[attr]
         raise AttributeError(f"TestSuite has no attribute {attr}")
 
-    def _printresults(self):
+    def _printresults(self) -> None:
 
         print("============================")
 
@@ -256,7 +268,7 @@ class TestSuite(metaclass=_TestSuiteMeta):
         print("============================")
 
     @classmethod
-    def run(cls, printresults=True):
+    def run(cls, printresults: Optional[bool]=True) -> None:
         """
         Start running this test suites tests.
         """
@@ -266,12 +278,12 @@ class TestSuite(metaclass=_TestSuiteMeta):
         if printresults:
             self._printresults()
 
-    def _doTests(self):
+    def _doTests(self) -> None:
         """
         Runs tests.
         """
         # Initialize suite.
-        self._results = []
+        self._results: List[TestResult] = []
 
         # startupAll
         if self._startupAll is not None:
@@ -284,7 +296,7 @@ class TestSuite(metaclass=_TestSuiteMeta):
         if self._teardownAll is not None:
             self._teardownAll(self)
 
-    def _runTest(self, test_):
+    def _runTest(self, test_: "test") -> None:
         """
         Run a test.
         """
@@ -306,29 +318,32 @@ class TestSuite(metaclass=_TestSuiteMeta):
         if self._teardown is not None:
             self._teardown(self)
 
-# Used by _BaseFunctionCaller.__call__ to see if we need to 
-# pass a TestSuite object.
 _MISSING_SELF = "missing 1 required positional argument: 'self'"
+_MISSING_SELF_MODULE_TEST_SUITE = TestSuite()
 
 class _BaseFunctionCaller:
-    def __init__(self, function):
+    def __init__(self, function: Callable):
         self.function = function
         self.name = function.__name__
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
         try:
             return self.function.__call__(*args, **kwargs)
         except TypeError as exc:
-            if _MISSING_SELF in exc.args[0]:
-                pass
-            else:
+            if _MISSING_SELF not in exc.args[0]:
                 raise
+            
+            # Have to catch RAssertionError manually for module level tests,
+            # and then return a result.
+            passed = True
+            try:
+                self.function.__call__(_MISSING_SELF_MODULE_TEST_SUITE, *args, **kwargs)
+            except RAssertionError:
+                passed = False
 
-        # For _MISSING_SELF
-        class _BaseFunctionCaller_InternalTestSuite(TestSuite):
-            pass
+            return TestResult(self, passed)
 
-        _BaseFunctionCaller_InternalTestSuite._tests
+
 
 
 class test(_BaseFunctionCaller):
@@ -361,7 +376,7 @@ class teardownAll(_BaseFunctionCaller):
     """
     pass
 
-def _test():
+def _test() -> None:
     """
     A method which tests if the assertions are working.
     """
@@ -529,8 +544,9 @@ def _test():
     def myTestThatRaises(self):
         self.assertTrue(False)
 
-    mytest()
+    result = mytest()
     assertRaises(myTestThatRaises, RAssertionError)
+    #print(result.function, result.name, result.passed)
 
 if __name__ == "__main__":
     _test()
