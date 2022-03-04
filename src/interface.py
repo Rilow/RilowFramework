@@ -95,7 +95,7 @@ def _test():
 
         def methodThatHasImplementation(x: int):
             return x ** 2
-            
+
     class _MyImplementation(_MyInterface):
         x = 1
         def testMethod(x: int, y: int) -> int:
