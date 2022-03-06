@@ -4,6 +4,7 @@ Copyright (c) 2022 Rilow, All rights reserved.
 Name: interface.py
 Description: Interfaces in python.
 """
+from typing import Any
 
 class ImplementationError(Exception):
     """
@@ -26,7 +27,7 @@ class _InterfaceMeta(type):
     def __new__(cls, name, bases, attrs):
         obj = type.__new__(cls, name, bases, attrs)
 
-        if name == attrs.get("__qualname__", None) == "Interface":
+        if attrs.get("__qualname__", None) == "Interface":
             # Base `Interface` object
             return obj
 
@@ -44,6 +45,10 @@ class _InterfaceMeta(type):
                     if co_code == ELLIPSIS_CO_CODE:
                         _Interface_methods.append(attr)
 
+            # Interface identifier
+            obj.__interface__ = True
+
+            # Interface methods/attrs that must be implemented.
             setattr(obj, "_Interface_methods", _Interface_methods)
             setattr(obj, "_Interface_attrs", _Interface_attrs)
             return obj
@@ -51,6 +56,9 @@ class _InterfaceMeta(type):
         else:
             # Define an implementation
             interface = bases[0]
+
+            if not isinterface(interface):
+                raise TypeError(f"invalid interface type '{interface.__qualname__}'")
 
             methods = interface._Interface_methods
             implemented = [] # Implemented methods.
@@ -80,11 +88,29 @@ class _InterfaceMeta(type):
                 missing = [attr for attr in methods if attr not in implemented]
                 raise ImplementationError(f"no implementation for methods: '{missing}'")
 
+            # Implementation
+            obj.__interface__ = False
             return obj
 
 class Interface(metaclass=_InterfaceMeta):
-    pass
+    def __init__(self):
+        if isinterface(self):
+            raise TypeError("cannot instatiate interface")
 
+# Used by isinterface() and isimplementation()
+InterfaceTypes = (Interface, _InterfaceMeta)
+
+def isinterface(x: Any) -> bool:
+    """
+    Return True if `x` is an interface.
+    """
+    return isinstance(x, InterfaceTypes) and hasattr(x, "__interface__") and x.__interface__ is True
+
+def isimplementation(x: Any) -> bool:
+    """
+    Return True if `x` is an interface implementation.
+    """
+    return isinstance(x, InterfaceTypes) and hasattr(x, "__interface__") and x.__interface__ is False
 
 def _test():
 
@@ -95,6 +121,13 @@ def _test():
 
         def methodThatHasImplementation(x: int):
             return x ** 2
+
+    try:
+        m = _MyInterface()
+
+        raise RuntimeError("no type error raised")
+    except TypeError:
+        pass
 
     class _MyImplementation(_MyInterface):
         x = 1
@@ -119,5 +152,5 @@ def _test():
     except ImplementationError:
         pass
 
-if __name__ == "__main__":
+if __name__ == "__main__": 
     _test()
